@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "477514590170",
+    "project_id": "snapdate-32128",
+    "storage_bucket": "snapdate-32128.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:477514590170:android:d0b29d6c14135d411782e3",
+        "android_client_info": {
+          "package_name": "com.example.snapdate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQTGzVzfWeRaMVQ3XJG79NH9YNdxQJAfw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
