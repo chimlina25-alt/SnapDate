@@ -50,10 +50,13 @@ class _SignInViewState extends State<SignInView> {
 
           // Route to Verification Screen
           Navigator.pushReplacement(
-            context,
-
-            MaterialPageRoute(builder: (_) => const VerificationView()),
-          );
+  context,
+  MaterialPageRoute(
+    builder: (_) => VerificationView(
+      email: _emailController.text.trim(), // <--- Pass the email here
+    ),
+  ),
+);
         }
 
         await FirebaseAuth.instance.signOut();
