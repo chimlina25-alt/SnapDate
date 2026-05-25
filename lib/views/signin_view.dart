@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../main_layout.dart';
 import 'signup_view.dart';
-import 'forgotpw.dart'; // 👈 Fixed name to match your file structure
-import 'verification_view.dart'; // 👈 Added missing import to fix your error!
+import 'forgotpw.dart';
+import '../service/auth.dart';
 
 class SignInView extends StatefulWidget {
   const SignInView({super.key});
@@ -15,6 +14,7 @@ class SignInView extends StatefulWidget {
 class _SignInViewState extends State<SignInView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   Future<void> _signInUser() async {
@@ -27,53 +27,23 @@ class _SignInViewState extends State<SignInView> {
 
     setState(() => _isLoading = true);
     try {
-      UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
+      final user = await _authService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-      User? user = userCredential.user;
+      if (!mounted || user == null) return;
 
-      // BACKEND CHECK: Verify if email address has been activated
-      if (user != null && !user.emailVerified) {
-        await user.sendEmailVerification();
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainLayout()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Please verify your email address first. A new link has been sent.',
-              ),
-            ),
-          );
-
-          // Route to Verification Screen
-          Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (_) => VerificationView(
-      email: _emailController.text.trim(), // <--- Pass the email here
-    ),
-  ),
-);
-        }
-
-        await FirebaseAuth.instance.signOut();
-        return;
-      }
-
-      // Success path if authenticated and verified
-      if (mounted && user != null && user.emailVerified) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const MainLayout()),
-          (route) => false,
-        );
-      }
-    } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Login Validation Failed')),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       if (mounted) {
@@ -105,12 +75,12 @@ class _SignInViewState extends State<SignInView> {
                   vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC0C0C0).withOpacity(0.85),
+                  color: const Color(0xFFC0C0C0).withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(50),
                   border: Border.all(color: Colors.white, width: 1.5),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
+                      color: Colors.black.withValues(alpha: 0.12),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),

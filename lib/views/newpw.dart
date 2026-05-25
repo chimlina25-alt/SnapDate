@@ -102,7 +102,7 @@ class _CreateNewPasswordViewState extends State<CreateNewPasswordView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFC0C0C0).withOpacity(0.85),
+                color: const Color(0xFFC0C0C0).withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(50),
                 border: Border.all(color: Colors.white, width: 1.5),
               ),

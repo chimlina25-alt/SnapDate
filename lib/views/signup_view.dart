@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../main_layout.dart'; // Added Firestore package dependency
-import 'home_view.dart'; // Changed to direct dashboard routing destination
 import 'signin_view.dart';
-
+import '../service/auth.dart';
 
 class SignUpView extends StatefulWidget {
   const SignUpView({super.key});
@@ -17,13 +14,16 @@ class _SignUpViewState extends State<SignUpView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   Future<void> _signUpUser() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final username = _usernameController.text.trim();
+
     // Check if any of the fields (including user name) are empty before executing
-    if (_emailController.text.isEmpty || 
-        _passwordController.text.isEmpty || 
-        _usernameController.text.isEmpty) {
+    if (email.isEmpty || password.isEmpty || username.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please complete all fields")),
       );
@@ -35,34 +35,26 @@ class _SignUpViewState extends State<SignUpView> {
     });
 
     try {
-      // 1. Create the user credential inside Firebase Authentication
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      await _authService.signUp(
+        email: email,
+        password: password,
+        username: username,
       );
 
-      // 2. Write the initial profile metrics straight to Firestore under their unique UID
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-        'username': _usernameController.text.trim(),
-        'avatarUrl': '', // Clear initialization line for profile picture upload
-        'highlights': [], // Clean array list template ready to store 4 base64 images
-      });
+      if (!mounted) return;
 
-      if (mounted) {
-        // 3. Skip verification layers completely - push user directly to MainLayout Workspace dashboard
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const MainLayout()),
-          (route) => false, // Prevents users from accidentally navigating back to sign up screen
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Authentication Error")),
+      // 3. Skip verification layers completely - push user directly to MainLayout Workspace dashboard
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainLayout()),
+        (route) =>
+            false, // Prevents users from accidentally navigating back to sign up screen
       );
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Database initialization failure: $e")),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       if (mounted) {
@@ -84,7 +76,7 @@ class _SignUpViewState extends State<SignUpView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFC7E5E6), 
+      backgroundColor: const Color(0xFFC7E5E6),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -93,9 +85,12 @@ class _SignUpViewState extends State<SignUpView> {
               // Floating Brand Oval Badge Row Element
               Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 44,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade400.withOpacity(0.8),
+                    color: Colors.grey.shade400.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(40),
                   ),
                   child: const Text(
@@ -150,14 +145,16 @@ class _SignUpViewState extends State<SignUpView> {
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _signUpUser,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFD6A2A8), 
+                          backgroundColor: const Color(0xFFD6A2A8),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : const Text(
                                 'Sign Up',
                                 style: TextStyle(
@@ -174,7 +171,7 @@ class _SignUpViewState extends State<SignUpView> {
                       width: double.infinity,
                       height: 48,
                       child: OutlinedButton(
-                        onPressed: () {}, 
+                        onPressed: () {},
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFFD6A2A8)),
                           shape: RoundedRectangleBorder(

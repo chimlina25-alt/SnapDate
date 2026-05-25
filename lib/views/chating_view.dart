@@ -9,7 +9,7 @@ import 'package:intl/intl.dart';
 import '../models/app_user.dart';
 import '../models/chat_message.dart';
 import '../models/memory.dart';
-import '../utils/app_image.dart';
+import '../utils/app_image.dart'; // Uses your appImage/appImageProvider helper functions
 import '../service/chat_service.dart';
 import '../service/friend_service.dart';
 import '../service/memory_service.dart';
@@ -32,6 +32,8 @@ class _ChatViewState extends State<ChatView> {
   AppUser? _activeFriend;
   String _query = '';
   bool _isSending = false;
+  
+  // Services
   final UserService _userService = UserService();
   final FriendService _friendService = FriendService();
   final ChatService _chatService = ChatService();
@@ -64,22 +66,55 @@ class _ChatViewState extends State<ChatView> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: _activeFriend != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                onPressed: () => setState(() => _activeFriend = null),
+              )
+            : null,
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFCD7D9), // Pastel Pink from Mockup
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'SnapDate',
+            style: TextStyle(
+              fontFamily: 'Billabong', // Change to your cursive font if applicable
+              fontSize: 24,
+              color: Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
       body: _activeFriend == null ? _buildInbox() : _buildConversation(),
     );
   }
 
+  /// 1. Inbox Main View (Matches your Mockup Screen 1 & 2 layout)
   Widget _buildInbox() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Horizontal Stories/Active Friends bubble track (Mockup top section)
+        _buildActiveFriendsRow(),
+        
+        // Search Bar Area
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
           child: TextField(
             controller: _searchController,
             onChanged: (value) =>
                 setState(() => _query = value.trim().toLowerCase()),
             decoration: InputDecoration(
               hintText: 'Search profile name',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: const Icon(Icons.search, color: Colors.black45),
               suffixIcon: _query.isEmpty
                   ? null
                   : IconButton(
@@ -90,18 +125,82 @@ class _ChatViewState extends State<ChatView> {
                       },
                     ),
               filled: true,
-              fillColor: const Color(0xFFEDF6F4),
+              fillColor: const Color(0xFFEDF6F4), // Mint/light teal background
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
                 borderSide: BorderSide.none,
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
         ),
+        
         if (_query.isNotEmpty) _buildSearchResults(),
         _buildIncomingRequests(),
+        
+        // Chat List items below the search
         Expanded(child: _buildFriendList()),
       ],
+    );
+  }
+
+  /// Top Horizontal Profile Bubbles Row (Mockup Section)
+  Widget _buildActiveFriendsRow() {
+    return StreamBuilder<List<AppUser>>(
+      stream: _friendService.streamFriends(_uid),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final friends = snapshot.data!;
+        return SizedBox(
+          height: 90,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            scrollDirection: Axis.horizontal,
+            itemCount: friends.length,
+            itemBuilder: (context, index) {
+              final friend = friends[index];
+              return GestureDetector(
+                onTap: () => setState(() => _activeFriend = friend),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(2.5),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFFE26A97), // Pink Accent ring
+                        ),
+                        child: CircleAvatar(
+                          radius: 26,
+                          backgroundColor: Colors.white,
+                          child: CircleAvatar(
+                            radius: 24,
+                            backgroundColor: const Color(0xFFFCD7D9),
+                            backgroundImage: appImageProvider(friend.profileImageUrl),
+                            child: appImageProvider(friend.profileImageUrl) == null
+                                ? const Icon(Icons.person, color: Colors.black45)
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        friend.username,
+                        style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -115,9 +214,7 @@ class _ChatViewState extends State<ChatView> {
             child: LinearProgressIndicator(),
           );
         }
-
         final results = snapshot.data!;
-
         if (results.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(16),
@@ -127,7 +224,6 @@ class _ChatViewState extends State<ChatView> {
             ),
           );
         }
-
         return Container(
           margin: const EdgeInsets.fromLTRB(18, 4, 18, 12),
           decoration: BoxDecoration(
@@ -147,6 +243,9 @@ class _ChatViewState extends State<ChatView> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFD6A2A8),
                     foregroundColor: Colors.black87,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                   onPressed: () => _sendFriendRequest(user),
                   child: const Text('Add Friend'),
@@ -183,7 +282,6 @@ class _ChatViewState extends State<ChatView> {
                   spacing: 4,
                   children: [
                     IconButton(
-                      tooltip: 'Accept',
                       icon: const Icon(Icons.check_circle_outline),
                       color: const Color(0xFFE26A97),
                       onPressed: () => _acceptFriendRequest(
@@ -192,7 +290,6 @@ class _ChatViewState extends State<ChatView> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Reject',
                       icon: const Icon(Icons.cancel_outlined),
                       color: Colors.black38,
                       onPressed: () => _rejectFriendRequest(
@@ -245,19 +342,20 @@ class _ChatViewState extends State<ChatView> {
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
           itemCount: snapshot.data!.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
+          separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFF1F1F1)),
           itemBuilder: (context, index) {
             final friend = snapshot.data![index];
 
             return ListTile(
+              contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
               leading: _avatar(friend.profileImageUrl),
               title: Text(
                 friend.username,
+                style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: _LastMessage(chatId: ChatService.getChatId(_uid, friend.uid)),
-              trailing: const Icon(Icons.chevron_right),
               onTap: () => setState(() => _activeFriend = friend),
             );
           },
@@ -266,6 +364,7 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  /// 2. Inside Chat Conversation Room View
   Widget _buildConversation() {
     final friend = _activeFriend!;
     final friendId = friend.uid;
@@ -273,30 +372,32 @@ class _ChatViewState extends State<ChatView> {
 
     return Column(
       children: [
+        // Dedicated Context Header bar for active conversation partner
         Container(
-          padding: const EdgeInsets.fromLTRB(8, 10, 16, 10),
-          color: const Color(0xFFEDF6F4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          color: const Color(0xFFEDF6F4), // Light background style matching mockups
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() => _activeFriend = null),
-              ),
               _avatar(friend.profileImageUrl),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  friend.username,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      friend.username,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Text('Active now', style: TextStyle(color: Colors.black45, fontSize: 12)),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+        
+        // Chat Bubbles Stream list
         Expanded(
           child: StreamBuilder<List<ChatMessage>>(
             stream: _chatService.streamMessages(chatId),
@@ -308,11 +409,10 @@ class _ChatViewState extends State<ChatView> {
               final messages = snapshot.data!;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (_messagesController.hasClients) {
-                  _messagesController.jumpTo(
-                    _messagesController.position.maxScrollExtent,
-                  );
+                  _messagesController.jumpTo(_messagesController.position.maxScrollExtent);
                 }
               });
+
               if (messages.isEmpty) {
                 return const Center(
                   child: Text(
@@ -348,34 +448,48 @@ class _ChatViewState extends State<ChatView> {
         child: Row(
           children: [
             IconButton(
-              tooltip: 'Send app image',
-              icon: const Icon(Icons.photo_library_outlined),
+              icon: const Icon(Icons.photo_library_outlined, color: Colors.black54),
               onPressed: _isSending ? null : () => _showMemoryPicker(friendId),
             ),
             IconButton(
-              tooltip: 'Send computer image',
-              icon: const Icon(Icons.attach_file),
+              icon: const Icon(Icons.attach_file, color: Colors.black54),
               onPressed: _isSending ? null : () => _sendPickedImage(friendId),
             ),
             Expanded(
-              child: TextField(
-                controller: _messageController,
-                minLines: 1,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'Message',
-                  filled: true,
-                  fillColor: const Color(0xFFEDF6F4),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
-                  ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDF6F4),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        minLines: 1,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText: 'custom message...',
+                          border: InputBorder.none,
+                          hintStyle: TextStyle(color: Colors.black38),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.send, color: Color(0xFFE26A97)),
-              onPressed: _isSending ? null : () => _sendText(friendId),
+            const SizedBox(width: 4),
+            Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFFFCD7D9),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Color(0xFFE26A97)),
+                onPressed: _isSending ? null : () => _sendText(friendId),
+              ),
             ),
           ],
         ),
@@ -390,15 +504,19 @@ class _ChatViewState extends State<ChatView> {
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 260),
-        margin: const EdgeInsets.symmetric(vertical: 5),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         padding: EdgeInsets.all(imageUrl.isEmpty ? 12 : 6),
         decoration: BoxDecoration(
           color: mine ? const Color(0xFFFCD7D9) : const Color(0xFFEDF6F4),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: mine ? const Radius.circular(16) : const Radius.circular(0),
+            bottomRight: mine ? const Radius.circular(0) : const Radius.circular(16),
+          ),
         ),
         child: Column(
-          crossAxisAlignment:
-              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (imageUrl.isNotEmpty)
@@ -407,13 +525,16 @@ class _ChatViewState extends State<ChatView> {
                 child: appImage(imageUrl, fit: BoxFit.cover),
               )
             else
-              Text(text),
+              Text(
+                text,
+                style: const TextStyle(color: Colors.black87, fontSize: 15),
+              ),
             const SizedBox(height: 4),
             Text(
               _formatMessageTime(message.createdAt),
               style: TextStyle(
-                fontSize: 10,
-                color: Colors.black.withValues(alpha: 0.45),
+                fontSize: 9,
+                color: Colors.black.withValues(alpha: 0.35),
               ),
             ),
           ],
@@ -425,14 +546,16 @@ class _ChatViewState extends State<ChatView> {
   Widget _avatar(String avatarUrl) {
     final imageProvider = appImageProvider(avatarUrl);
     return CircleAvatar(
+      radius: 24,
       backgroundColor: const Color(0xFFFCD7D9),
       backgroundImage: imageProvider,
       child: imageProvider == null
-          ? const Icon(Icons.person, color: Colors.black45)
+          ? const Icon(Icons.person, color: Colors.black45, size: 24)
           : null,
     );
   }
 
+  // Logic Operations (Keep matching your system backend architecture)
   Future<void> _sendFriendRequest(AppUser toUser) async {
     try {
       final current = await _userService.userRef(_uid).get();
@@ -447,34 +570,20 @@ class _ChatViewState extends State<ChatView> {
               bio: '',
               highlightUrls: const [],
             );
-      await _friendService.sendRequest(
-        fromUid: _uid,
-        fromUser: currentUser,
-        toUser: toUser,
-      );
-
+      await _friendService.sendRequest(fromUid: _uid, fromUser: currentUser, toUser: toUser);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Request sent to ${toUser.username}.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Request sent to ${toUser.username}.')));
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not add friend: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not add friend: $e')));
     }
   }
 
   Future<void> _acceptFriendRequest(String fromUid, Map<String, dynamic> data) async {
     final current = await _userService.userRef(_uid).get();
     if (!current.exists) return;
-    await _friendService.acceptRequest(
-      uid: _uid,
-      currentUser: AppUser.fromDoc(current),
-      fromUid: fromUid,
-      requestData: data,
-    );
+    await _friendService.acceptRequest(uid: _uid, currentUser: AppUser.fromDoc(current), fromUid: fromUid, requestData: data);
   }
 
   Future<void> _rejectFriendRequest(String fromUid) async {
@@ -489,43 +598,31 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _sendPickedImage(String friendId) async {
-    final selected = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 65,
-    );
+    final selected = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 65);
     if (selected == null) return;
-
     await _sendMessage(friendId: friendId, imageFile: File(selected.path));
   }
 
   Future<void> _showMemoryPicker(String friendId) async {
     await showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return StreamBuilder<List<Memory>>(
           stream: MemoryService().streamMemories(_uid, limit: 30),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
-              return const SizedBox(
-                height: 180,
-                child: Center(child: CircularProgressIndicator()),
-              );
+              return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator()));
             }
-
             final memories = snapshot.data!;
             if (memories.isEmpty) {
-              return const SizedBox(
-                height: 180,
-                child: Center(child: Text('No app gallery images yet.')),
-              );
+              return const SizedBox(height: 180, child: Center(child: Text('No app gallery images yet.')));
             }
-
             return GridView.builder(
               padding: const EdgeInsets.all(14),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+                crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10,
               ),
               itemCount: memories.length,
               itemBuilder: (context, index) {
@@ -548,15 +645,9 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  Future<void> _sendMessage({
-    required String friendId,
-    String text = '',
-    String imageUrl = '',
-    File? imageFile,
-  }) async {
+  Future<void> _sendMessage({required String friendId, String text = '', String imageUrl = '', File? imageFile}) async {
     if (text.isEmpty && imageUrl.isEmpty && imageFile == null) return;
     setState(() => _isSending = true);
-
     try {
       if (imageFile != null) {
         await _chatService.sendImage(fromUid: _uid, toUid: friendId, file: imageFile);
@@ -567,19 +658,16 @@ class _ChatViewState extends State<ChatView> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not send message: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send message: $e')));
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
-
 }
 
+/// Dynamic Widget displaying the summary content info for list items 
 class _LastMessage extends StatelessWidget {
   final String chatId;
-
   const _LastMessage({required this.chatId});
 
   @override
@@ -588,11 +676,28 @@ class _LastMessage extends StatelessWidget {
       stream: FirebaseFirestore.instance.collection('chat_rooms').doc(chatId).snapshots(),
       builder: (context, snapshot) {
         final data = snapshot.data?.data();
-        final text = (data?['lastMessage'] ?? 'Tap to chat').toString();
+        final text = (data?['lastMessage'] ?? 'Tap to message...').toString();
         final date = (data?['lastMessageAt'] as Timestamp?)?.toDate() ??
             (data?['updatedAt'] as Timestamp?)?.toDate();
-        final suffix = date == null ? '' : '  ${_formatMessageTime(date)}';
-        return Text('$text$suffix', maxLines: 1, overflow: TextOverflow.ellipsis);
+        
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                text, 
+                maxLines: 1, 
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.black45, fontSize: 13),
+              ),
+            ),
+            if (date != null)
+              Text(
+                '  ${_formatMessageTime(date)}',
+                style: const TextStyle(color: Colors.black26, fontSize: 11),
+              ),
+          ],
+        );
       },
     );
   }
@@ -601,7 +706,6 @@ class _LastMessage extends StatelessWidget {
 String _formatMessageTime(DateTime? date) {
   if (date == null) return '';
   final now = DateTime.now();
-  final sameDay =
-      now.year == date.year && now.month == date.month && now.day == date.day;
-  return sameDay ? DateFormat('HH:mm').format(date) : DateFormat('MMM d').format(date);
+  final sameDay = now.year == date.year && now.month == date.month && now.day == date.day;
+  return sameDay ? DateFormat('h:mm a').format(date) : DateFormat('MMM d').format(date);
 }

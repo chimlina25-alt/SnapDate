@@ -1,95 +1,49 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'user_service.dart';
 
 class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final UserService _userService = UserService();
 
- final FirebaseAuth _auth =
- FirebaseAuth.instance;
+  Future<UserCredential> signUp({
+    required String email,
+    required String password,
+    required String username,
+  }) async {
+    final userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final user = userCredential.user;
+    if (user != null) {
+      await user.updateDisplayName(username);
+      await _userService.ensureUserDocument(user, username: username);
+    }
+    return userCredential;
+  }
 
+  Future<User?> signIn({required String email, required String password}) async {
+    UserCredential credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
 
-Future signUp({
+    User? user = credential.user;
 
-required String email,
-required String password,
+    if (user != null) {
+      await user.reload();
+      await _userService.ensureUserDocument(_auth.currentUser ?? user);
 
-}) async {
+      return _auth.currentUser;
+    }
+    return null;
+  }
 
-final userCredential =
-await _auth.createUserWithEmailAndPassword(
+  Future resetPassword(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
 
-email: email,
-password: password,
-
-);
-
-await userCredential.user
-?.sendEmailVerification();
-
-}
-
-
-
-Future signIn({
-
-required String email,
-required String password,
-
-}) async {
-
-UserCredential credential=
-await _auth.signInWithEmailAndPassword(
-
-email: email,
-password: password,
-
-);
-
-User? user=
-credential.user;
-
-
-if(user!=null){
-
-await user.reload();
-
-user=_auth.currentUser;
-
-
-if(!user!.emailVerified){
-
-await user.sendEmailVerification();
-
-await _auth.signOut();
-
-throw FirebaseAuthException(
-
-code:"email-not-verified",
-message:"Please verify email first"
-
-);
-
-}
-
-}
-
-}
-
-
-Future resetPassword(
-String email
-) async {
-
-await _auth.sendPasswordResetEmail(
-email: email,
-);
-
-}
-
-
-
-Future logout() async{
-
-await _auth.signOut();
-
-}
-
+  Future logout() async {
+    await _auth.signOut();
+  }
 }

@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/app_image.dart';
+import '../models/memory.dart';
+import '../service/memory_service.dart';
 
 class MediaInspectorView extends StatefulWidget {
-  final String docId;
-  final Map<String, dynamic> mediaData;
-  const MediaInspectorView({super.key, required this.docId, required this.mediaData});
+  final String? docId;
+  final Map<String, dynamic>? mediaData;
+  final String? memoryId;
+  final Memory? memory;
+  const MediaInspectorView({
+    super.key,
+    this.docId,
+    this.mediaData,
+    this.memoryId,
+    this.memory,
+  });
 
   @override
   State<MediaInspectorView> createState() => _MediaInspectorViewState();
@@ -13,34 +23,50 @@ class MediaInspectorView extends StatefulWidget {
 
 class _MediaInspectorViewState extends State<MediaInspectorView> {
   final String _uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+  final MemoryService _memoryService = MemoryService();
   late bool _isFav;
+  late String _memoryId;
+  late String _mediaUrl;
+  late String _storagePath;
+  late MemoryType _type;
 
   @override
   void initState() {
     super.initState();
-    _isFav = widget.mediaData['isFavorite'] ?? false;
+    _memoryId = widget.memory?.id ?? widget.memoryId ?? widget.docId ?? '';
+    _mediaUrl = widget.memory?.mediaUrl ??
+        (widget.mediaData?['imagePath'] ??
+                widget.mediaData?['mediaUrl'] ??
+                widget.mediaData?['imageUrl'] ??
+                '')
+            .toString();
+    _storagePath = widget.memory?.storagePath ??
+        (widget.mediaData?['storagePath'] ?? widget.mediaData?['imagePath'] ?? '').toString();
+    _type = widget.memory?.type ??
+        ((widget.mediaData?['type'] ?? 'image') == 'video' ? MemoryType.video : MemoryType.image);
+    _isFav = widget.memory?.isFavorite ?? widget.mediaData?['isFavorite'] == true;
   }
 
   Future<void> _toggleFavorite() async {
     setState(() => _isFav = !_isFav);
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_uid)
-        .collection('memories')
-        .doc(widget.docId)
-        .update({'isFavorite': _isFav});
+    await _memoryService.setFavorite(
+      uid: _uid,
+      memoryId: _memoryId,
+      isFavorite: _isFav,
+    );
   }
 
   Future<void> _deletePhoto() async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_uid)
-        .collection('memories')
-        .doc(widget.docId)
-        .delete();
+    await _memoryService.deleteMemory(
+      uid: _uid,
+      memoryId: _memoryId,
+      storagePath: _storagePath,
+    );
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Memory permanently deleted')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Memory permanently deleted')),
+      );
     }
   }
 
@@ -51,10 +77,22 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
-          IconButton(icon: Icon(_isFav ? Icons.favorite : Icons.favorite_border, color: Colors.redAccent), onPressed: _toggleFavorite),
-          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.white70), onPressed: _deletePhoto),
+          IconButton(
+            icon: Icon(
+              _isFav ? Icons.favorite : Icons.favorite_border,
+              color: Colors.redAccent,
+            ),
+            onPressed: _toggleFavorite,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white70),
+            onPressed: _deletePhoto,
+          ),
         ],
       ),
       body: Column(
@@ -62,7 +100,19 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
         children: [
           Expanded(
             child: InteractiveViewer(
-              child: Image.network(widget.mediaData['imageUrl'] ?? '', fit: BoxFit.contain),
+              child: Center(
+                child: _type == MemoryType.video
+                    ? const Icon(Icons.play_circle_fill, color: Colors.white70, size: 96)
+                    : appImage(
+                        _mediaUrl,
+                        fit: BoxFit.contain,
+                        fallback: const Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white54,
+                          size: 80,
+                        ),
+                      ),
+              ),
             ),
           ),
           Container(
@@ -72,16 +122,25 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white54),
+                  ),
                   icon: const Icon(Icons.share_outlined, color: Colors.white),
-                  label: const Text("Share Memory", style: TextStyle(color: Colors.white)),
+                  label: const Text(
+                    "Share Memory",
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sharing options generated')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Sharing options generated'),
+                      ),
+                    );
                   },
-                )
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );

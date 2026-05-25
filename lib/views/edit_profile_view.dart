@@ -1,20 +1,20 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
+import '../service/user_service.dart';
+import '../utils/app_image.dart';
 
 class EditProfileView extends StatefulWidget {
   final String currentUsername;
   final String currentAvatar;
-  final List<dynamic> currentHighlights;
-  
+  final String currentBio;
+
   const EditProfileView({
-    super.key, 
-    required this.currentUsername, 
-    required this.currentAvatar, 
-    required this.currentHighlights
+    super.key,
+    required this.currentUsername,
+    required this.currentAvatar,
+    this.currentBio = '',
   });
 
   @override
@@ -23,53 +23,85 @@ class EditProfileView extends StatefulWidget {
 
 class _EditProfileViewState extends State<EditProfileView> {
   late TextEditingController _userController;
-  late List<dynamic> _workingHighlights;
-  String _avatarDataString = "";
+  late TextEditingController _bioController;
+  String _avatarUrl = "";
+  File? _avatarFile;
   final String _uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
   final ImagePicker _picker = ImagePicker();
+  final UserService _userService = UserService();
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _userController = TextEditingController(text: widget.currentUsername);
-    _workingHighlights = List.from(widget.currentHighlights);
-    _avatarDataString = widget.currentAvatar;
+    _bioController = TextEditingController(text: widget.currentBio);
+    _avatarUrl = widget.currentAvatar;
   }
 
   Future<void> _pickAvatarImage() async {
-    final XFile? selected = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 60);
-    if (selected != null) {
-      final bytes = await File(selected.path).readAsBytes();
-      setState(() {
-        _avatarDataString = "data:image/png;base64,${base64Encode(bytes)}";
-      });
-    }
-  }
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose Photo'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (source == null) return;
 
-  Future<void> _pickHighlightSlotImage(int index) async {
-    final XFile? selected = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 60);
+    final XFile? selected = await _picker.pickImage(
+      source: source,
+      imageQuality: 60,
+    );
     if (selected != null) {
-      final bytes = await File(selected.path).readAsBytes();
-      final base64Image = "data:image/png;base64,${base64Encode(bytes)}";
-      
       setState(() {
-        if (index < _workingHighlights.length) {
-          _workingHighlights[index] = base64Image;
-        } else {
-          _workingHighlights.add(base64Image);
-        }
+        _avatarFile = File(selected.path);
       });
     }
   }
 
   Future<void> _persistProfileData() async {
-    await FirebaseFirestore.instance.collection('users').doc(_uid).set({
-      'username': _userController.text.trim(),
-      'avatarUrl': _avatarDataString,
-      'highlights': _workingHighlights,
-    }, SetOptions(merge: true));
-    
-    if (mounted) Navigator.pop(context);
+    final username = _userController.text.trim();
+    if (username.isEmpty) return;
+    setState(() => _isSaving = true);
+    try {
+      await _userService.updateProfile(
+        uid: _uid,
+        username: username,
+        bio: _bioController.text.trim(),
+        profileImage: _avatarFile,
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save profile: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _userController.dispose();
+    _bioController.dispose();
+    super.dispose();
   }
 
   @override
@@ -77,7 +109,10 @@ class _EditProfileViewState extends State<EditProfileView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Edit SnapDate Profile", style: TextStyle(fontFamily: 'Georgia', color: Colors.black87)), 
+        title: const Text(
+          "Edit SnapDate Profile",
+          style: TextStyle(fontFamily: 'Georgia', color: Colors.black87),
+        ),
         backgroundColor: const Color(0xFFA3D2CA),
         elevation: 0,
         leading: IconButton(
@@ -94,54 +129,57 @@ class _EditProfileViewState extends State<EditProfileView> {
               child: CircleAvatar(
                 radius: 45,
                 backgroundColor: const Color(0xFFEDF6F4),
-                backgroundImage: _avatarDataString.isNotEmpty 
-                    ? MemoryImage(base64Decode(_avatarDataString.split(',').last)) 
+                backgroundImage: _avatarFile != null
+                    ? FileImage(_avatarFile!)
+                    : appImageProvider(_avatarUrl),
+                child: _avatarFile == null && appImageProvider(_avatarUrl) == null
+                    ? const Icon(
+                        Icons.add_a_photo,
+                        size: 30,
+                        color: Colors.black38,
+                      )
                     : null,
-                child: _avatarDataString.isEmpty ? const Icon(Icons.add_a_photo, size: 30, color: Colors.black38) : null,
               ),
             ),
           ),
           const SizedBox(height: 20),
           TextField(
-            controller: _userController, 
+            controller: _userController,
             decoration: const InputDecoration(
               labelText: "Display Profile Nickname",
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 30),
-          const Text("Highlights Album Slots (Tap to edit/add photo)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10),
-            itemCount: 4,
-            itemBuilder: (ctx, i) {
-              final hasImg = i < _workingHighlights.length;
-              return GestureDetector(
-                onTap: () => _pickHighlightSlotImage(i),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEDF6F4), 
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.black12),
-                    image: hasImg ? DecorationImage(image: MemoryImage(base64Decode(_workingHighlights[i].split(',').last)), fit: BoxFit.cover) : null,
-                  ),
-                  child: !hasImg ? const Icon(Icons.add_photo_alternate_outlined, color: Colors.black26) : null,
-                ),
-              );
-            },
+          TextField(
+            controller: _bioController,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: "Bio",
+              border: OutlineInputBorder(),
+            ),
           ),
           const SizedBox(height: 40),
           SizedBox(
             height: 48,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD6A2A8), elevation: 0),
-              onPressed: _persistProfileData, 
-              child: const Text("SAVE CHANGES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD6A2A8),
+                elevation: 0,
+              ),
+              onPressed: _isSaving ? null : _persistProfileData,
+              child: _isSaving
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                      "SAVE CHANGES",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
-          )
+          ),
         ],
       ),
     );

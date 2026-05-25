@@ -55,7 +55,7 @@ class HomeView extends StatelessWidget {
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(color: const Color(0xFFEDF6F4), borderRadius: BorderRadius.circular(20)),
-              child: Icon(icon, size: 50, color: color.withOpacity(0.8)),
+              child: Icon(icon, size: 100, color: color.withValues(alpha: 0.8)),
             ),
           ),
           const SizedBox(height: 8),
