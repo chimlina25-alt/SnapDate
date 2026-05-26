@@ -11,7 +11,9 @@ String _resolveLocalPath(String originalPath) {
   if (originalPath.isEmpty) return originalPath;
   final snapdateIndex = originalPath.toLowerCase().indexOf('snapdate');
   if (snapdateIndex != -1 && appDocumentsDirectoryPath != null) {
-    final partAfterSnapdate = originalPath.substring(snapdateIndex + 'snapdate'.length);
+    final partAfterSnapdate = originalPath.substring(
+      snapdateIndex + 'snapdate'.length,
+    );
     final cleanPart = partAfterSnapdate.replaceFirst(RegExp(r'^[\\/]'), '');
     return p.join(appDocumentsDirectoryPath!, cleanPart);
   }
@@ -34,7 +36,6 @@ ImageProvider? appImageProvider(String? value) {
     return FileImage(File(_resolveLocalPath(imageValue)));
   }
 
-  // If it's a local path but we are on Web, we cannot read it directly as a File, so return null/fallback
   if (kIsWeb && _isLocalPath(imageValue)) {
     return null;
   }
@@ -61,22 +62,24 @@ Widget appImage(String? value, {BoxFit fit = BoxFit.cover, Widget? fallback}) {
       File(_resolveLocalPath(imageValue)),
       fit: fit,
       errorBuilder: (context, error, stackTrace) =>
-          fallback ?? const Icon(Icons.broken_image_outlined, color: Colors.black26),
+          fallback ??
+          const Icon(Icons.broken_image_outlined, color: Colors.black26),
     );
   }
 
   if (kIsWeb && _isLocalPath(imageValue)) {
-    return fallback ?? const Icon(Icons.broken_image_outlined, color: Colors.black26);
+    return fallback ??
+        const Icon(Icons.broken_image_outlined, color: Colors.black26);
   }
 
   return CachedNetworkImage(
     imageUrl: imageValue,
     fit: fit,
-    placeholder: (context, url) => const Center(
-      child: CircularProgressIndicator(strokeWidth: 2),
-    ),
+    placeholder: (context, url) =>
+        const Center(child: CircularProgressIndicator(strokeWidth: 2)),
     errorWidget: (context, url, error) =>
-        fallback ?? const Icon(Icons.broken_image_outlined, color: Colors.black26),
+        fallback ??
+        const Icon(Icons.broken_image_outlined, color: Colors.black26),
   );
 }
 

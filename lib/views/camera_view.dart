@@ -41,18 +41,22 @@ class _CameraMainViewState extends State<CameraMainView> {
 
       final index = cameraIndex.clamp(0, _cameras.length - 1);
       final oldController = _cameraController;
+      if (oldController != null) {
+        await oldController.dispose();
+        _cameraController = null;
+      }
+
       final controller = await _cameraService.createController(_cameras[index]);
-
-      _cameraController = controller;
-      _cameraIndex = index;
-      await oldController?.dispose();
-
       if (!mounted) {
         await controller.dispose();
         return;
       }
 
-      setState(() => _isCameraReady = true);
+      setState(() {
+        _cameraController = controller;
+        _cameraIndex = index;
+        _isCameraReady = controller.value.isInitialized;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isCameraReady = false);
@@ -64,7 +68,15 @@ class _CameraMainViewState extends State<CameraMainView> {
 
   Future<void> _switchCamera() async {
     if (_cameras.length < 2 || _isProcessing) return;
-    await _setupCamera(cameraIndex: (_cameraIndex + 1) % _cameras.length);
+    final targetLens =
+        _cameras[_cameraIndex].lensDirection == CameraLensDirection.front
+        ? CameraLensDirection.back
+        : CameraLensDirection.front;
+    final nextIndex = _cameras.indexWhere(
+      (desc) => desc.lensDirection == targetLens,
+    );
+    if (nextIndex < 0) return;
+    await _setupCamera(cameraIndex: nextIndex);
   }
 
   Future<void> _capturePhoto() async {
@@ -76,7 +88,18 @@ class _CameraMainViewState extends State<CameraMainView> {
 
     setState(() => _isProcessing = true);
     try {
-      final photo = await controller.takePicture();
+      final photo =
+          _cameras[_cameraIndex].lensDirection == CameraLensDirection.front
+          ? await _takeFrontPhoto()
+          : await _cameraService.takePictureSafely(
+              controller,
+              _cameras[_cameraIndex],
+            );
+
+      if (photo == null) {
+        throw Exception('Unable to capture photo safely.');
+      }
+
       await _memoryService.addImageMemory(uid: uid, xFile: photo);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -93,9 +116,36 @@ class _CameraMainViewState extends State<CameraMainView> {
     }
   }
 
+  Future<XFile?> _takeFrontPhoto() async {
+    final controller = _cameraController;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        controller.value.isTakingPicture) {
+      return null;
+    }
+
+    try {
+      return await _cameraService.takePictureSafely(
+        controller,
+        _cameras[_cameraIndex],
+      );
+    } on CameraException catch (_) {
+      await _setupCamera(cameraIndex: _cameraIndex);
+      if (_cameraController == null ||
+          !_cameraController!.value.isInitialized) {
+        return null;
+      }
+      return await _cameraService.takePictureSafely(
+        _cameraController!,
+        _cameras[_cameraIndex],
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ready = _isCameraReady && _cameraController != null;
+    final controller = _cameraController;
+    final ready = controller != null && controller.value.isInitialized;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -103,7 +153,7 @@ class _CameraMainViewState extends State<CameraMainView> {
         children: [
           Positioned.fill(
             child: ready
-                ? CameraPreview(_cameraController!)
+                ? CameraPreview(controller!)
                 : const Center(
                     child: CircularProgressIndicator(color: Color(0xFFD6A2A8)),
                   ),

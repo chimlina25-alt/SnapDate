@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'views/home_view.dart';
 import 'views/calendar_view.dart';
@@ -8,6 +9,10 @@ import 'views/notifications.dart';
 import 'views/camera_view.dart';
 import 'views/gallery.dart';
 import 'models/app_user.dart';
+import 'service/notification_service.dart';
+import 'service/user_service.dart';
+import 'utils/app_image.dart';
+import 'widgets/notification_badge.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -17,6 +22,7 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
+  final UserService _userService = UserService();
   String _currentScreen = 'home';
   String _searchQuery = '';
   AppUser? _activeFriendForChat;
@@ -111,22 +117,53 @@ class _MainLayoutState extends State<MainLayout> {
                     if (isHome) const SizedBox(width: 15),
                     GestureDetector(
                       onTap: () => _navigateTo('profile'),
-                      child: Container(
-                        width: 45,
-                        height: 45,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFFF5F5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'pf',
-                            style: TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                      child: Builder(
+                        builder: (context) {
+                          final uid = FirebaseAuth.instance.currentUser?.uid;
+                          if (uid == null) {
+                            return const CircleAvatar(
+                              radius: 22.5,
+                              backgroundColor: Color(0xFFFFF5F5),
+                              child: Icon(Icons.person, color: Colors.black54),
+                            );
+                          }
+
+                          return StreamBuilder<AppUser?>(
+                            stream: _userService.streamUser(uid),
+                            builder: (context, snapshot) {
+                              final user = snapshot.data;
+                              final imageUrl = user?.profileImageUrl;
+                              final imageProvider = appImageProvider(imageUrl);
+                              final initials = user?.username
+                                  .trim()
+                                  .split(RegExp(r'\s+'))
+                                  .where((part) => part.isNotEmpty)
+                                  .take(2)
+                                  .map((part) => part[0].toUpperCase())
+                                  .join();
+
+                              return CircleAvatar(
+                                radius: 22.5,
+                                backgroundColor: const Color(0xFFFFF5F5),
+                                backgroundImage: imageProvider,
+                                child: imageProvider == null
+                                    ? (initials != null && initials.isNotEmpty
+                                          ? Text(
+                                              initials,
+                                              style: const TextStyle(
+                                                color: Colors.black87,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.person,
+                                              color: Colors.black54,
+                                            ))
+                                    : null,
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -214,15 +251,14 @@ class _MainLayoutState extends State<MainLayout> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          IconButton(
+          NotificationBadge(
+            countStream: FirebaseAuth.instance.currentUser?.uid != null
+                ? NotificationService().streamPendingNotificationCount(
+                    FirebaseAuth.instance.currentUser!.uid,
+                  )
+                : Stream.value(0),
+            selected: _currentScreen == 'notifications',
             onPressed: () => _navigateTo('notifications'),
-            icon: Icon(
-              Icons.notifications_none_rounded,
-              size: 30,
-              color: _currentScreen == 'notifications'
-                  ? const Color(0xFFD6A2A8)
-                  : Colors.black26,
-            ),
           ),
           GestureDetector(
             onTap: () => _navigateTo('camera'),

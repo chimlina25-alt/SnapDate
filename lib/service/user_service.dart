@@ -5,20 +5,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/app_user.dart';
-import 'storage_service.dart';
+import 'cloudinary_service.dart';
 
 class UserService {
   UserService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
-    StorageService? storageService,
+    CloudinaryService? cloudinaryService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _auth = auth ?? FirebaseAuth.instance,
-       _storageService = storageService ?? StorageService();
+       _cloudinaryService = cloudinaryService ?? CloudinaryService();
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
-  final StorageService _storageService;
+  final CloudinaryService _cloudinaryService;
 
   DocumentReference<Map<String, dynamic>> userRef(String uid) {
     return _firestore.collection('users').doc(uid);
@@ -103,15 +103,16 @@ class UserService {
     List<String>? highlightUrls,
   }) async {
     String? profileImageUrl;
-    StorageUpload? upload;
     if (profileImage != null || profileImageXFile != null) {
-      upload = await _storageService.uploadImage(
-        ownerId: uid,
-        file: profileImage,
-        xFile: profileImageXFile,
-        folder: 'profile_images',
+      final imageFile = profileImage ?? File(profileImageXFile!.path);
+      profileImageUrl = await _cloudinaryService.uploadImage(
+        imageFile,
+        isAvatar: true,
       );
-      profileImageUrl = upload.url;
+
+      if (profileImageUrl == null || profileImageUrl.isEmpty) {
+        throw Exception('Cloudinary profile image upload failed.');
+      }
     }
 
     final data = <String, dynamic>{
@@ -124,7 +125,7 @@ class UserService {
       data['profileImageUrl'] = profileImageUrl;
       data['avatarUrl'] = profileImageUrl;
       data['profileImagePath'] = profileImageUrl;
-      data['profileImageStoragePath'] = upload?.path ?? '';
+      data['profileImageStoragePath'] = profileImageUrl;
     }
     if (highlightUrls != null) {
       data['highlightUrls'] = highlightUrls;
@@ -132,5 +133,29 @@ class UserService {
     }
     await userRef(uid).set(data, SetOptions(merge: true));
     await _auth.currentUser?.updateDisplayName(username);
+  }
+
+  Future<String> updateProfilePicture({
+    required String uid,
+    required File avatarFile,
+  }) async {
+    final profileImageUrl = await _cloudinaryService.uploadImage(
+      avatarFile,
+      isAvatar: true,
+    );
+
+    if (profileImageUrl == null || profileImageUrl.isEmpty) {
+      throw Exception('Cloudinary profile image upload failed.');
+    }
+
+    await userRef(uid).set({
+      'profileImageUrl': profileImageUrl,
+      'avatarUrl': profileImageUrl,
+      'profileImagePath': profileImageUrl,
+      'profileImageStoragePath': profileImageUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    return profileImageUrl;
   }
 }

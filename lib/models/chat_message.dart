@@ -9,6 +9,8 @@ class ChatMessage {
   final String text;
   final String imageUrl;
   final String storagePath;
+  final bool isEdited;
+  final bool isDeleted;
   final DateTime? createdAt;
 
   const ChatMessage({
@@ -18,6 +20,8 @@ class ChatMessage {
     required this.text,
     required this.imageUrl,
     required this.storagePath,
+    this.isEdited = false,
+    this.isDeleted = false,
     this.createdAt,
   });
 
@@ -31,6 +35,8 @@ class ChatMessage {
       text: message.text,
       imageUrl: message.imageUrl,
       storagePath: message.storagePath,
+      isEdited: message.isEdited,
+      isDeleted: message.isDeleted,
       createdAt: message.timestamp,
     );
   }

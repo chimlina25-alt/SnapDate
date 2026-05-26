@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -68,10 +69,35 @@ class _EditProfileViewState extends State<EditProfileView> {
       source: source,
       imageQuality: 60,
     );
-    if (selected != null) {
+    if (selected == null) return;
+
+    setState(() {
+      _avatarFile = selected;
+      _isSaving = true;
+    });
+
+    try {
+      final file = File(selected.path);
+      final secureUrl = await _userService.updateProfilePicture(
+        uid: _uid,
+        avatarFile: file,
+      );
+
+      if (!mounted) return;
       setState(() {
-        _avatarFile = selected;
+        _avatarUrl = secureUrl;
+        _avatarFile = null;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile avatar updated successfully.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not upload avatar: $e')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -89,9 +115,9 @@ class _EditProfileViewState extends State<EditProfileView> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save profile: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save profile: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -132,7 +158,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                 backgroundImage: _avatarFile != null
                     ? appImageProvider(_avatarFile!.path)
                     : appImageProvider(_avatarUrl),
-                child: _avatarFile == null && appImageProvider(_avatarUrl) == null
+                child:
+                    _avatarFile == null && appImageProvider(_avatarUrl) == null
                     ? const Icon(
                         Icons.add_a_photo,
                         size: 30,

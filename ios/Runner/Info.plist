@@ -22,6 +22,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to take photos for your profile and camera memories.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to choose profile pictures and images for the app.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Used to save images and camera photos to your device if needed.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

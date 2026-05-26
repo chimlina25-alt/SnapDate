@@ -6,6 +6,8 @@ class MessageModel {
   final String text;
   final String imageUrl;
   final String storagePath;
+  final bool isEdited;
+  final bool isDeleted;
   final DateTime? timestamp;
 
   const MessageModel({
@@ -14,6 +16,8 @@ class MessageModel {
     required this.text,
     required this.imageUrl,
     required this.storagePath,
+    this.isEdited = false,
+    this.isDeleted = false,
     this.timestamp,
   });
 
@@ -27,7 +31,10 @@ class MessageModel {
       text: (data['text'] ?? '').toString(),
       imageUrl: (data['imagePath'] ?? data['imageUrl'] ?? '').toString(),
       storagePath: (data['storagePath'] ?? data['imagePath'] ?? '').toString(),
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ??
+      isEdited: data['isEdited'] == true,
+      isDeleted: data['isDeleted'] == true,
+      timestamp:
+          (data['timestamp'] as Timestamp?)?.toDate() ??
           (data['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -39,6 +46,8 @@ class MessageModel {
       'imagePath': imageUrl,
       'imageUrl': imageUrl,
       'storagePath': storagePath,
+      'isEdited': isEdited,
+      'isDeleted': isDeleted,
       'timestamp': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
     };

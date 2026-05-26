@@ -45,25 +45,27 @@ class GalleryView extends StatelessWidget {
                         MediaInspectorView(memoryId: memory.id, memory: memory),
                   ),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: memory.type == MemoryType.image &&
-                            appImageProvider(memory.mediaUrl) != null
-                        ? DecorationImage(
-                            image: appImageProvider(memory.mediaUrl)!,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    color: const Color(0xFFF5F5F5),
+                    child: memory.type == MemoryType.image
+                        ? appImage(
+                            memory.mediaUrl,
                             fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: memory.type == MemoryType.video
-                      ? const Icon(Icons.play_circle_fill, color: Colors.black45, size: 42)
-                      : appImageProvider(memory.mediaUrl) == null
-                          ? const Icon(
+                            fallback: const Icon(
                               Icons.broken_image_outlined,
                               color: Colors.black26,
-                            )
-                          : null,
+                            ),
+                          )
+                        : const Center(
+                            child: Icon(
+                              Icons.play_circle_fill,
+                              color: Colors.black45,
+                              size: 42,
+                            ),
+                          ),
+                  ),
                 ),
               );
             },

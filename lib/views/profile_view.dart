@@ -68,8 +68,6 @@ class ProfileView extends StatelessWidget {
                 bio = (data['bio'] ?? '').toString();
               }
 
-              final avatarImage = appImageProvider(avatarUrl);
-
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -77,14 +75,27 @@ class ProfileView extends StatelessWidget {
                     CircleAvatar(
                       radius: 50,
                       backgroundColor: const Color(0xFFFCD7D9),
-                      backgroundImage: avatarImage,
-                      child: avatarImage == null
+                      child: avatarUrl.trim().isEmpty
                           ? const Icon(
                               Icons.person,
                               size: 50,
                               color: Colors.black54,
                             )
-                          : null,
+                          : ClipOval(
+                              child: SizedBox(
+                                width: 100,
+                                height: 100,
+                                child: appImage(
+                                  avatarUrl,
+                                  fit: BoxFit.cover,
+                                  fallback: const Icon(
+                                    Icons.person,
+                                    size: 50,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -231,27 +242,27 @@ class _MemoryStrip extends StatelessWidget {
           itemCount: memories.length,
           itemBuilder: (ctx, index) {
             final memory = memories[index];
-            final imageProvider = appImageProvider(memory.mediaUrl);
-            return Container(
-              decoration: BoxDecoration(
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: Container(
                 color: const Color(0xFFEDF6F4),
-                borderRadius: BorderRadius.circular(15),
-                image: memory.type == MemoryType.image && imageProvider != null
-                    ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
-                    : null,
+                child: memory.type == MemoryType.image
+                    ? appImage(
+                        memory.mediaUrl,
+                        fit: BoxFit.cover,
+                        fallback: const Icon(
+                          Icons.photo_library_outlined,
+                          color: Colors.black12,
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.play_circle_fill,
+                          color: Colors.black38,
+                          size: 42,
+                        ),
+                      ),
               ),
-              child: memory.type == MemoryType.video
-                  ? const Icon(
-                      Icons.play_circle_fill,
-                      color: Colors.black38,
-                      size: 42,
-                    )
-                  : imageProvider == null
-                  ? const Icon(
-                      Icons.photo_library_outlined,
-                      color: Colors.black12,
-                    )
-                  : null,
             );
           },
         );

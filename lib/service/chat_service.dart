@@ -5,17 +5,17 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/chat_message.dart';
 import '../models/message_model.dart';
-import 'storage_service.dart';
+import 'cloudinary_service.dart';
 
 class ChatService {
   ChatService({
     FirebaseFirestore? firestore,
-    StorageService? storageService,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storageService = storageService ?? StorageService();
+    CloudinaryService? cloudinaryService,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _cloudinaryService = cloudinaryService ?? CloudinaryService();
 
   final FirebaseFirestore _firestore;
-  final StorageService _storageService;
+  final CloudinaryService _cloudinaryService;
 
   Stream<QuerySnapshot<Map<String, dynamic>>> streamChatRooms(String uid) {
     return _firestore
@@ -65,17 +65,20 @@ class ChatService {
     File? file,
     XFile? xFile,
   }) async {
-    final upload = await _storageService.uploadImage(
-      ownerId: fromUid,
-      file: file,
-      xFile: xFile,
-      folder: 'chat_images',
+    final imageFile = file ?? File(xFile!.path);
+    final secureUrl = await _cloudinaryService.uploadImage(
+      imageFile,
+      isAvatar: false,
     );
+    if (secureUrl == null || secureUrl.isEmpty) {
+      throw Exception('Cloudinary chat image upload failed.');
+    }
+
     await _sendMessage(
       fromUid: fromUid,
       toUid: toUid,
-      imageUrl: upload.url,
-      storagePath: upload.path,
+      imageUrl: secureUrl,
+      storagePath: secureUrl,
     );
   }
 
@@ -85,6 +88,38 @@ class ChatService {
     required String imageUrl,
   }) {
     return _sendMessage(fromUid: fromUid, toUid: toUid, imageUrl: imageUrl);
+  }
+
+  Future<void> editMessage(
+    String chatId,
+    String messageId,
+    String newText,
+  ) async {
+    if (newText.trim().isEmpty) return;
+    final messageRef = _firestore
+        .collection('chat_rooms')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    await messageRef.update({
+      'text': newText.trim(),
+      'isEdited': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteMessage(String chatId, String messageId) async {
+    final messageRef = _firestore
+        .collection('chat_rooms')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    await messageRef.update({
+      'isDeleted': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> _sendMessage({
@@ -118,6 +153,7 @@ class ChatService {
       ...message,
       'senderId': fromUid,
       'receiverId': toUid,
+      'isRead': false,
     });
   }
 

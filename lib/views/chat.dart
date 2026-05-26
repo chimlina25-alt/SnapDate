@@ -33,6 +33,7 @@ class _ChatViewState extends State<ChatView> {
   AppUser? _activeFriend;
   String _query = '';
   bool _isSending = false;
+  ChatMessage? _editingMessage;
   final UserService _userService = UserService();
   final FriendService _friendService = FriendService();
   final ChatService _chatService = ChatService();
@@ -179,7 +180,8 @@ class _ChatViewState extends State<ChatView> {
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) return const SizedBox.shrink();
 
-        final sortedDocs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(docs);
+        final sortedDocs =
+            List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(docs);
         sortedDocs.sort((a, b) {
           final aTime = a.data()['timestamp'] as Timestamp?;
           final bTime = b.data()['timestamp'] as Timestamp?;
@@ -199,7 +201,10 @@ class _ChatViewState extends State<ChatView> {
             children: sortedDocs.map((doc) {
               final data = doc.data();
               return ListTile(
-                leading: _avatar((data['profileImageUrl'] ?? data['avatarUrl'] ?? '').toString()),
+                leading: _avatar(
+                  (data['profileImageUrl'] ?? data['avatarUrl'] ?? '')
+                      .toString(),
+                ),
                 title: Text((data['username'] ?? 'SnapDate User').toString()),
                 subtitle: const Text('Friend request'),
                 trailing: Wrap(
@@ -210,7 +215,8 @@ class _ChatViewState extends State<ChatView> {
                       icon: const Icon(Icons.check_circle_outline),
                       color: const Color(0xFFE26A97),
                       onPressed: () => _acceptFriendRequest(
-                        (data['senderId'] ?? data['fromUid'] ?? doc.id).toString(),
+                        (data['senderId'] ?? data['fromUid'] ?? doc.id)
+                            .toString(),
                         data,
                       ),
                     ),
@@ -219,7 +225,8 @@ class _ChatViewState extends State<ChatView> {
                       icon: const Icon(Icons.cancel_outlined),
                       color: Colors.black38,
                       onPressed: () => _rejectFriendRequest(
-                        (data['senderId'] ?? data['fromUid'] ?? doc.id).toString(),
+                        (data['senderId'] ?? data['fromUid'] ?? doc.id)
+                            .toString(),
                       ),
                     ),
                   ],
@@ -292,7 +299,9 @@ class _ChatViewState extends State<ChatView> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: _LastMessage(chatId: ChatService.getChatId(_uid, friend.uid)),
+              subtitle: _LastMessage(
+                chatId: ChatService.getChatId(_uid, friend.uid),
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => setState(() => _activeFriend = friend),
             );
@@ -381,37 +390,83 @@ class _ChatViewState extends State<ChatView> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              tooltip: 'Send app image',
-              icon: const Icon(Icons.photo_library_outlined),
-              onPressed: _isSending ? null : () => _showMemoryPicker(friendId),
-            ),
-            IconButton(
-              tooltip: 'Send computer image',
-              icon: const Icon(Icons.attach_file),
-              onPressed: _isSending ? null : () => _sendPickedImage(friendId),
-            ),
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                minLines: 1,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'Message',
-                  filled: true,
-                  fillColor: const Color(0xFFEDF6F4),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
-                  ),
+            if (_editingMessage != null)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF5E5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.edit, size: 18, color: Colors.black87),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Editing message',
+                        style: TextStyle(color: Colors.black87),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.black54),
+                      onPressed: _cancelEditing,
+                    ),
+                  ],
                 ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.send, color: Color(0xFFE26A97)),
-              onPressed: _isSending ? null : () => _sendText(friendId),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Send app image',
+                  icon: const Icon(Icons.photo_library_outlined),
+                  onPressed: _isSending
+                      ? null
+                      : () => _showMemoryPicker(friendId),
+                ),
+                IconButton(
+                  tooltip: 'Send computer image',
+                  icon: const Icon(Icons.attach_file),
+                  onPressed: _isSending
+                      ? null
+                      : () => _sendPickedImage(friendId),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: _editingMessage != null
+                          ? 'Edit message...'
+                          : 'Message',
+                      filled: true,
+                      fillColor: const Color(0xFFEDF6F4),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    _editingMessage != null ? Icons.check : Icons.send,
+                    color: const Color(0xFFE26A97),
+                  ),
+                  tooltip: _editingMessage != null
+                      ? 'Save edit'
+                      : 'Send message',
+                  onPressed: _isSending ? null : () => _sendText(friendId),
+                ),
+              ],
             ),
           ],
         ),
@@ -422,38 +477,109 @@ class _ChatViewState extends State<ChatView> {
   Widget _messageBubble(ChatMessage message, bool mine) {
     final text = message.text;
     final imageUrl = message.imageUrl;
+    final isDeleted = message.isDeleted;
+    final isEdited = message.isEdited && !isDeleted;
+    final bubbleColor = isDeleted
+        ? const Color(0xFFEEEEEE)
+        : mine
+        ? const Color(0xFFFCD7D9)
+        : const Color(0xFFEDF6F4);
+    final chatPartnerId = message.senderId == _uid
+        ? message.receiverId
+        : message.senderId;
+    final chatId = ChatService.getChatId(_uid, chatPartnerId);
+
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 260),
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: EdgeInsets.all(imageUrl.isEmpty ? 12 : 6),
-        decoration: BoxDecoration(
-          color: mine ? const Color(0xFFFCD7D9) : const Color(0xFFEDF6F4),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (imageUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: appImage(imageUrl, fit: BoxFit.cover),
-              )
-            else
-              Text(text),
-            const SizedBox(height: 4),
-            Text(
-              _formatMessageTime(message.createdAt),
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.black.withValues(alpha: 0.45),
+      child: Column(
+        crossAxisAlignment: mine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          if (mine && !isDeleted)
+            Align(
+              alignment: Alignment.topRight,
+              child: PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: Colors.black54,
+                ),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _startEditingMessage(message);
+                  } else if (value == 'delete') {
+                    _confirmDeleteMessage(chatId, message);
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
               ),
             ),
-          ],
-        ),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 260),
+            margin: const EdgeInsets.symmetric(vertical: 5),
+            padding: EdgeInsets.all(imageUrl.isEmpty ? 12 : 6),
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: mine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isDeleted) ...[
+                  const Text(
+                    'This message was deleted',
+                    style: TextStyle(
+                      color: Colors.black45,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ] else ...[
+                  if (imageUrl.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: appImage(imageUrl, fit: BoxFit.cover),
+                    )
+                  else
+                    Text(
+                      text,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 15,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatMessageTime(message.createdAt),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.black.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      if (isEdited) ...[
+                        const SizedBox(width: 6),
+                        const Text(
+                          '(edited)',
+                          style: TextStyle(fontSize: 10, color: Colors.black54),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -477,7 +603,9 @@ class _ChatViewState extends State<ChatView> {
           : AppUser(
               uid: _uid,
               email: FirebaseAuth.instance.currentUser?.email ?? '',
-              username: FirebaseAuth.instance.currentUser?.displayName ?? 'SnapDate User',
+              username:
+                  FirebaseAuth.instance.currentUser?.displayName ??
+                  'SnapDate User',
               usernameLower: 'snapdate user',
               profileImageUrl: '',
               bio: '',
@@ -490,9 +618,9 @@ class _ChatViewState extends State<ChatView> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Request sent to ${toUser.username}.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Request sent to ${toUser.username}.')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -502,7 +630,10 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
-  Future<void> _acceptFriendRequest(String fromUid, Map<String, dynamic> data) async {
+  Future<void> _acceptFriendRequest(
+    String fromUid,
+    Map<String, dynamic> data,
+  ) async {
     final current = await _userService.userRef(_uid).get();
     if (!current.exists) return;
     await _friendService.acceptRequest(
@@ -516,7 +647,9 @@ class _ChatViewState extends State<ChatView> {
       uid: fromUid,
       email: data['email'] ?? '',
       username: data['username'] ?? 'SnapDate User',
-      usernameLower: (data['username'] ?? 'SnapDate User').toString().toLowerCase(),
+      usernameLower: (data['username'] ?? 'SnapDate User')
+          .toString()
+          .toLowerCase(),
       profileImageUrl: data['profileImageUrl'] ?? data['avatarUrl'] ?? '',
       bio: '',
       highlightUrls: const [],
@@ -533,8 +666,95 @@ class _ChatViewState extends State<ChatView> {
   Future<void> _sendText(String friendId) async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+    if (_editingMessage != null) {
+      await _performEdit(friendId, text);
+      return;
+    }
     _messageController.clear();
     await _sendMessage(friendId: friendId, text: text);
+  }
+
+  Future<void> _performEdit(String friendId, String newText) async {
+    final editingMessage = _editingMessage;
+    if (editingMessage == null) return;
+    final chatId = ChatService.getChatId(_uid, friendId);
+    setState(() => _isSending = true);
+
+    try {
+      await _chatService.editMessage(chatId, editingMessage.id, newText);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message updated.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not edit message: $e')));
+    } finally {
+      if (!mounted) return;
+      _messageController.clear();
+      setState(() {
+        _editingMessage = null;
+        _isSending = false;
+      });
+    }
+  }
+
+  void _startEditingMessage(ChatMessage message) {
+    if (message.isDeleted) return;
+    _messageController.text = message.text;
+    _messageController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _messageController.text.length),
+    );
+    setState(() => _editingMessage = message);
+  }
+
+  void _cancelEditing() {
+    _messageController.clear();
+    setState(() => _editingMessage = null);
+  }
+
+  Future<void> _confirmDeleteMessage(String chatId, ChatMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete message'),
+          content: const Text(
+            'Delete this message? This will hide it from the conversation.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    setState(() => _isSending = true);
+    try {
+      await _chatService.deleteMessage(chatId, message.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not delete message: $e')));
+    } finally {
+      if (!mounted) return;
+      setState(() => _isSending = false);
+    }
   }
 
   Future<void> _sendPickedImage(String friendId) async {
@@ -608,9 +828,17 @@ class _ChatViewState extends State<ChatView> {
 
     try {
       if (imageXFile != null) {
-        await _chatService.sendImage(fromUid: _uid, toUid: friendId, xFile: imageXFile);
+        await _chatService.sendImage(
+          fromUid: _uid,
+          toUid: friendId,
+          xFile: imageXFile,
+        );
       } else if (imageUrl.isNotEmpty) {
-        await _chatService.sendExistingImage(fromUid: _uid, toUid: friendId, imageUrl: imageUrl);
+        await _chatService.sendExistingImage(
+          fromUid: _uid,
+          toUid: friendId,
+          imageUrl: imageUrl,
+        );
       } else {
         await _chatService.sendText(fromUid: _uid, toUid: friendId, text: text);
       }
@@ -623,7 +851,6 @@ class _ChatViewState extends State<ChatView> {
       if (mounted) setState(() => _isSending = false);
     }
   }
-
 }
 
 class _LastMessage extends StatelessWidget {
@@ -634,14 +861,22 @@ class _LastMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('chat_rooms').doc(chatId).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('chat_rooms')
+          .doc(chatId)
+          .snapshots(),
       builder: (context, snapshot) {
         final data = snapshot.data?.data();
         final text = (data?['lastMessage'] ?? 'Tap to chat').toString();
-        final date = (data?['lastMessageAt'] as Timestamp?)?.toDate() ??
+        final date =
+            (data?['lastMessageAt'] as Timestamp?)?.toDate() ??
             (data?['updatedAt'] as Timestamp?)?.toDate();
         final suffix = date == null ? '' : '  ${_formatMessageTime(date)}';
-        return Text('$text$suffix', maxLines: 1, overflow: TextOverflow.ellipsis);
+        return Text(
+          '$text$suffix',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
       },
     );
   }
@@ -652,5 +887,7 @@ String _formatMessageTime(DateTime? date) {
   final now = DateTime.now();
   final sameDay =
       now.year == date.year && now.month == date.month && now.day == date.day;
-  return sameDay ? DateFormat('HH:mm').format(date) : DateFormat('MMM d').format(date);
+  return sameDay
+      ? DateFormat('HH:mm').format(date)
+      : DateFormat('MMM d').format(date);
 }
