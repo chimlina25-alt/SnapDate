@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -16,21 +16,31 @@ class LocalStorageService {
     required String ownerId,
     required String folder,
   }) async {
+    if (kIsWeb) {
+      return LocalStoredFile(path: file.path);
+    }
+    
     final dir = await _ensureDirectory(folder, ownerId);
     final targetPath = p.join(
       dir.path,
       '${DateTime.now().microsecondsSinceEpoch}.jpg',
     );
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      targetPath,
-      quality: 72,
-      minWidth: 1440,
-      minHeight: 1440,
-      format: CompressFormat.jpeg,
-    );
+    
+    try {
+      final result = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        targetPath,
+        quality: 72,
+        minWidth: 1440,
+        minHeight: 1440,
+        format: CompressFormat.jpeg,
+      );
 
-    if (result == null) {
+      if (result == null) {
+        await file.copy(targetPath);
+      }
+    } catch (e) {
+      // In case compression fails or is unsupported on the platform
       await file.copy(targetPath);
     }
 
@@ -42,6 +52,10 @@ class LocalStorageService {
     required String ownerId,
     required String folder,
   }) async {
+    if (kIsWeb) {
+      return LocalStoredFile(path: file.path);
+    }
+    
     final dir = await _ensureDirectory(folder, ownerId);
     final extension = p.extension(file.path).isEmpty ? '.mp4' : p.extension(file.path);
     final targetPath = p.join(
@@ -53,10 +67,14 @@ class LocalStorageService {
   }
 
   Future<void> deleteFile(String path) async {
-    if (path.trim().isEmpty) return;
-    final file = File(path);
-    if (await file.exists()) {
-      await file.delete();
+    if (kIsWeb || path.trim().isEmpty) return;
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint("Failed to delete local file: $e");
     }
   }
 

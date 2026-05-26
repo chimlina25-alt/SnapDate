@@ -17,8 +17,9 @@ import '../service/user_service.dart';
 
 class ChatView extends StatefulWidget {
   final String initialQuery;
+  final AppUser? initialActiveFriend;
 
-  const ChatView({super.key, this.initialQuery = ''});
+  const ChatView({super.key, this.initialQuery = '', this.initialActiveFriend});
 
   @override
   State<ChatView> createState() => _ChatViewState();
@@ -43,6 +44,9 @@ class _ChatViewState extends State<ChatView> {
     super.initState();
     _query = widget.initialQuery.trim().toLowerCase();
     _searchController.text = widget.initialQuery.trim();
+    if (widget.initialActiveFriend != null) {
+      _activeFriend = widget.initialActiveFriend;
+    }
   }
 
   @override
@@ -163,8 +167,27 @@ class _ChatViewState extends State<ChatView> {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _friendService.streamIncomingRequests(_uid),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            child: Text(
+              'Error loading requests: ${snapshot.error}',
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          );
+        }
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) return const SizedBox.shrink();
+
+        final sortedDocs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(docs);
+        sortedDocs.sort((a, b) {
+          final aTime = a.data()['timestamp'] as Timestamp?;
+          final bTime = b.data()['timestamp'] as Timestamp?;
+          if (aTime == null && bTime == null) return 0;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
 
         return Container(
           margin: const EdgeInsets.fromLTRB(18, 4, 18, 8),
@@ -173,7 +196,7 @@ class _ChatViewState extends State<ChatView> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
-            children: docs.map((doc) {
+            children: sortedDocs.map((doc) {
               final data = doc.data();
               return ListTile(
                 leading: _avatar((data['profileImageUrl'] ?? data['avatarUrl'] ?? '').toString()),
@@ -215,6 +238,19 @@ class _ChatViewState extends State<ChatView> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Error loading friends: ${snapshot.error}',
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -475,6 +511,19 @@ class _ChatViewState extends State<ChatView> {
       fromUid: fromUid,
       requestData: data,
     );
+    // Automatically navigate/switch to the chat with this new friend!
+    final friendUser = AppUser(
+      uid: fromUid,
+      email: data['email'] ?? '',
+      username: data['username'] ?? 'SnapDate User',
+      usernameLower: (data['username'] ?? 'SnapDate User').toString().toLowerCase(),
+      profileImageUrl: data['profileImageUrl'] ?? data['avatarUrl'] ?? '',
+      bio: '',
+      highlightUrls: const [],
+    );
+    setState(() {
+      _activeFriend = friendUser;
+    });
   }
 
   Future<void> _rejectFriendRequest(String fromUid) async {
@@ -495,7 +544,7 @@ class _ChatViewState extends State<ChatView> {
     );
     if (selected == null) return;
 
-    await _sendMessage(friendId: friendId, imageFile: File(selected.path));
+    await _sendMessage(friendId: friendId, imageXFile: selected);
   }
 
   Future<void> _showMemoryPicker(String friendId) async {
@@ -552,14 +601,14 @@ class _ChatViewState extends State<ChatView> {
     required String friendId,
     String text = '',
     String imageUrl = '',
-    File? imageFile,
+    XFile? imageXFile,
   }) async {
-    if (text.isEmpty && imageUrl.isEmpty && imageFile == null) return;
+    if (text.isEmpty && imageUrl.isEmpty && imageXFile == null) return;
     setState(() => _isSending = true);
 
     try {
-      if (imageFile != null) {
-        await _chatService.sendImage(fromUid: _uid, toUid: friendId, file: imageFile);
+      if (imageXFile != null) {
+        await _chatService.sendImage(fromUid: _uid, toUid: friendId, xFile: imageXFile);
       } else if (imageUrl.isNotEmpty) {
         await _chatService.sendExistingImage(fromUid: _uid, toUid: friendId, imageUrl: imageUrl);
       } else {

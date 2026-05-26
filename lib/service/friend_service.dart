@@ -14,9 +14,19 @@ class FriendService {
     return _firestore
         .collection('friends')
         .where('userId', isEqualTo: uid)
-        .orderBy('addedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => AppUser.fromDoc(doc)).toList());
+        .map((snap) {
+          final docs = snap.docs.toList();
+          docs.sort((a, b) {
+            final aTime = (a.data()['addedAt'] ?? a.data()['createdAt']) as Timestamp?;
+            final bTime = (b.data()['addedAt'] ?? b.data()['createdAt']) as Timestamp?;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+          });
+          return docs.map((doc) => AppUser.fromDoc(doc)).toList();
+        });
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> streamIncomingRequests(String uid) {
@@ -24,7 +34,6 @@ class FriendService {
         .collection('friend_requests')
         .where('receiverId', isEqualTo: uid)
         .where('status', isEqualTo: 'pending')
-        .orderBy('timestamp', descending: true)
         .snapshots();
   }
 

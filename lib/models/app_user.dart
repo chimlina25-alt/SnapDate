@@ -28,15 +28,18 @@ class AppUser {
       uid: (data['uid'] ?? data['friendId'] ?? doc.id).toString(),
       email: (data['email'] ?? '').toString(),
       username: username,
-      usernameLower: (data['usernameLower'] ?? username.toLowerCase()).toString(),
+      usernameLower: (data['usernameLower'] ?? username.toLowerCase())
+          .toString(),
       profileImageUrl:
-          (data['profileImagePath'] ??
-                  data['profileImageUrl'] ??
+          (data['profileImageUrl'] ??
                   data['avatarUrl'] ??
+                  data['profileImagePath'] ??
                   '')
               .toString(),
       bio: (data['bio'] ?? '').toString(),
-      highlightUrls: List<String>.from(data['highlightUrls'] ?? data['highlights'] ?? []),
+      highlightUrls: List<String>.from(
+        data['highlightUrls'] ?? data['highlights'] ?? [],
+      ),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -49,10 +52,13 @@ class AppUser {
       'profileImageUrl': profileImageUrl,
       'avatarUrl': profileImageUrl,
       'profileImagePath': profileImageUrl,
+      'profileImageStoragePath': profileImageUrl,
       'bio': bio,
       'highlightUrls': highlightUrls,
       'highlights': highlightUrls,
-      'createdAt': createdAt == null ? FieldValue.serverTimestamp() : Timestamp.fromDate(createdAt!),
+      'createdAt': createdAt == null
+          ? FieldValue.serverTimestamp()
+          : Timestamp.fromDate(createdAt!),
     };
   }
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/app_user.dart';
 import 'storage_service.dart';
@@ -11,9 +12,9 @@ class UserService {
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     StorageService? storageService,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _storageService = storageService ?? StorageService();
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance,
+       _storageService = storageService ?? StorageService();
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -24,7 +25,9 @@ class UserService {
   }
 
   Stream<AppUser?> streamUser(String uid) {
-    return userRef(uid).snapshots().map((doc) => doc.exists ? AppUser.fromDoc(doc) : null);
+    return userRef(
+      uid,
+    ).snapshots().map((doc) => doc.exists ? AppUser.fromDoc(doc) : null);
   }
 
   Future<void> ensureUserDocument(User user, {String? username}) async {
@@ -32,23 +35,34 @@ class UserService {
     final displayName = username?.trim().isNotEmpty == true
         ? username!.trim()
         : user.displayName?.trim().isNotEmpty == true
-            ? user.displayName!.trim()
-            : user.email?.split('@').first ?? 'SnapDate User';
+        ? user.displayName!.trim()
+        : user.email?.split('@').first ?? 'SnapDate User';
 
     await userRef(user.uid).set({
       'email': user.email ?? '',
       'username': displayName,
       'usernameLower': displayName.toLowerCase(),
       'emailLower': (user.email ?? '').toLowerCase(),
-      'profileImageUrl': doc.data()?['profileImageUrl'] ?? doc.data()?['avatarUrl'] ?? '',
-      'profileImagePath': doc.data()?['profileImagePath'] ??
+      'profileImageUrl':
+          doc.data()?['profileImageUrl'] ?? doc.data()?['avatarUrl'] ?? '',
+      'profileImagePath':
+          doc.data()?['profileImagePath'] ??
           doc.data()?['profileImageUrl'] ??
           doc.data()?['avatarUrl'] ??
           '',
-      'avatarUrl': doc.data()?['avatarUrl'] ?? doc.data()?['profileImageUrl'] ?? '',
+      'profileImageStoragePath':
+          doc.data()?['profileImageStoragePath'] ??
+          doc.data()?['profileImagePath'] ??
+          doc.data()?['profileImageUrl'] ??
+          doc.data()?['avatarUrl'] ??
+          '',
+      'avatarUrl':
+          doc.data()?['avatarUrl'] ?? doc.data()?['profileImageUrl'] ?? '',
       'bio': doc.data()?['bio'] ?? '',
-      'highlightUrls': doc.data()?['highlightUrls'] ?? doc.data()?['highlights'] ?? [],
-      'highlights': doc.data()?['highlights'] ?? doc.data()?['highlightUrls'] ?? [],
+      'highlightUrls':
+          doc.data()?['highlightUrls'] ?? doc.data()?['highlights'] ?? [],
+      'highlights':
+          doc.data()?['highlights'] ?? doc.data()?['highlightUrls'] ?? [],
       if (!doc.exists) 'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -85,13 +99,16 @@ class UserService {
     required String username,
     required String bio,
     File? profileImage,
+    XFile? profileImageXFile,
     List<String>? highlightUrls,
   }) async {
     String? profileImageUrl;
-    if (profileImage != null) {
-      final upload = await _storageService.uploadImage(
+    StorageUpload? upload;
+    if (profileImage != null || profileImageXFile != null) {
+      upload = await _storageService.uploadImage(
         ownerId: uid,
         file: profileImage,
+        xFile: profileImageXFile,
         folder: 'profile_images',
       );
       profileImageUrl = upload.url;
@@ -107,6 +124,7 @@ class UserService {
       data['profileImageUrl'] = profileImageUrl;
       data['avatarUrl'] = profileImageUrl;
       data['profileImagePath'] = profileImageUrl;
+      data['profileImageStoragePath'] = upload?.path ?? '';
     }
     if (highlightUrls != null) {
       data['highlightUrls'] = highlightUrls;

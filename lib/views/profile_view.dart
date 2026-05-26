@@ -59,11 +59,12 @@ class ProfileView extends StatelessWidget {
                 if (savedUsername != null && savedUsername.isNotEmpty) {
                   username = savedUsername;
                 }
-                avatarUrl = (data['profileImagePath'] ??
-                        data['profileImageUrl'] ??
-                        data['avatarUrl'] ??
-                        "")
-                    .toString();
+                avatarUrl =
+                    (data['profileImageUrl'] ??
+                            data['avatarUrl'] ??
+                            data['profileImagePath'] ??
+                            "")
+                        .toString();
                 bio = (data['bio'] ?? '').toString();
               }
 
@@ -117,7 +118,10 @@ class ProfileView extends StatelessWidget {
                     const SizedBox(height: 10),
 
                     _MemoryStrip(
-                      stream: MemoryService().streamMemories(user.uid, limit: 4),
+                      stream: MemoryService().streamMemories(
+                        user.uid,
+                        limit: 4,
+                      ),
                       emptyText: 'No memories yet.',
                     ),
                     const SizedBox(height: 24),
@@ -197,7 +201,10 @@ class _MemoryStrip extends StatelessWidget {
       builder: (context, snapshot) {
         final memories = (snapshot.data ?? []).take(4).toList();
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()));
+          return const SizedBox(
+            height: 120,
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
         if (memories.isEmpty) {
           return Container(
@@ -207,7 +214,10 @@ class _MemoryStrip extends StatelessWidget {
               color: const Color(0xFFEDF6F4),
               borderRadius: BorderRadius.circular(15),
             ),
-            child: Text(emptyText, style: const TextStyle(color: Colors.black38)),
+            child: Text(
+              emptyText,
+              style: const TextStyle(color: Colors.black38),
+            ),
           );
         }
         return GridView.builder(
@@ -231,10 +241,17 @@ class _MemoryStrip extends StatelessWidget {
                     : null,
               ),
               child: memory.type == MemoryType.video
-                  ? const Icon(Icons.play_circle_fill, color: Colors.black38, size: 42)
+                  ? const Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.black38,
+                      size: 42,
+                    )
                   : imageProvider == null
-                      ? const Icon(Icons.photo_library_outlined, color: Colors.black12)
-                      : null,
+                  ? const Icon(
+                      Icons.photo_library_outlined,
+                      color: Colors.black12,
+                    )
+                  : null,
             );
           },
         );

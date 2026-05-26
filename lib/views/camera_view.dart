@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -22,8 +20,6 @@ class _CameraMainViewState extends State<CameraMainView> {
   int _cameraIndex = 0;
   bool _isCameraReady = false;
   bool _isProcessing = false;
-  bool _isRecording = false;
-  bool _photoMode = true;
 
   @override
   void initState() {
@@ -60,14 +56,14 @@ class _CameraMainViewState extends State<CameraMainView> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isCameraReady = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not start camera: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not start camera: $e')));
     }
   }
 
   Future<void> _switchCamera() async {
-    if (_cameras.length < 2 || _isProcessing || _isRecording) return;
+    if (_cameras.length < 2 || _isProcessing) return;
     await _setupCamera(cameraIndex: (_cameraIndex + 1) % _cameras.length);
   }
 
@@ -81,7 +77,7 @@ class _CameraMainViewState extends State<CameraMainView> {
     setState(() => _isProcessing = true);
     try {
       final photo = await controller.takePicture();
-      await _memoryService.addImageMemory(uid: uid, file: File(photo.path));
+      await _memoryService.addImageMemory(uid: uid, xFile: photo);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo uploaded to memories.')),
@@ -89,61 +85,11 @@ class _CameraMainViewState extends State<CameraMainView> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not upload photo: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not upload photo: $e')));
     } finally {
       if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _toggleVideoRecording() async {
-    final controller = _cameraController;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (controller == null || !controller.value.isInitialized || uid == null) {
-      return;
-    }
-
-    if (_isRecording) {
-      setState(() => _isProcessing = true);
-      try {
-        final video = await controller.stopVideoRecording();
-        setState(() => _isRecording = false);
-        await _memoryService.addVideoMemory(uid: uid, file: File(video.path));
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Video uploaded to memories.')),
-          );
-        }
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not upload video: $e')),
-        );
-      } finally {
-        if (mounted) setState(() => _isProcessing = false);
-      }
-      return;
-    }
-
-    try {
-      await controller.prepareForVideoRecording();
-      await controller.startVideoRecording();
-      if (mounted) setState(() => _isRecording = true);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not record video: $e')),
-      );
-    }
-  }
-
-  Future<void> _handleShutter() async {
-    if (_isProcessing) return;
-    if (_photoMode) {
-      await _capturePhoto();
-    } else {
-      await _toggleVideoRecording();
     }
   }
 
@@ -188,17 +134,11 @@ class _CameraMainViewState extends State<CameraMainView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _ModeToggle(
-                    photoMode: _photoMode,
-                    enabled: !_isRecording && !_isProcessing,
-                    onChanged: (value) => setState(() => _photoMode = value),
-                  ),
-                  const SizedBox(height: 22),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       GestureDetector(
-                        onTap: ready ? _handleShutter : null,
+                        onTap: ready && !_isProcessing ? _capturePhoto : null,
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           width: 78,
@@ -208,18 +148,10 @@ class _CameraMainViewState extends State<CameraMainView> {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 4),
                           ),
-                          child: DecoratedBox(
+                          child: const DecoratedBox(
                             decoration: BoxDecoration(
-                              color: _photoMode
-                                  ? Colors.white
-                                  : _isRecording
-                                      ? Colors.redAccent
-                                      : const Color(0xFFD6A2A8),
-                              shape: _isRecording
-                                  ? BoxShape.rectangle
-                                  : BoxShape.circle,
-                              borderRadius:
-                                  _isRecording ? BorderRadius.circular(14) : null,
+                              color: Colors.white,
+                              shape: BoxShape.circle,
                             ),
                           ),
                         ),
@@ -231,82 +163,6 @@ class _CameraMainViewState extends State<CameraMainView> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ModeToggle extends StatelessWidget {
-  final bool photoMode;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  const _ModeToggle({
-    required this.photoMode,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ModeButton(
-            label: 'Photo',
-            selected: photoMode,
-            enabled: enabled,
-            onTap: () => onChanged(true),
-          ),
-          _ModeButton(
-            label: 'Video',
-            selected: !photoMode,
-            enabled: enabled,
-            onTap: () => onChanged(false),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModeButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _ModeButton({
-    required this.label,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.black87 : Colors.white70,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
       ),
     );
   }

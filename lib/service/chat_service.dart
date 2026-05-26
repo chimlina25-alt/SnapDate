@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/chat_message.dart';
 import '../models/message_model.dart';
@@ -61,11 +62,13 @@ class ChatService {
   Future<void> sendImage({
     required String fromUid,
     required String toUid,
-    required File file,
+    File? file,
+    XFile? xFile,
   }) async {
     final upload = await _storageService.uploadImage(
       ownerId: fromUid,
       file: file,
+      xFile: xFile,
       folder: 'chat_images',
     );
     await _sendMessage(

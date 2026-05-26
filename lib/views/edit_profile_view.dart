@@ -25,7 +25,7 @@ class _EditProfileViewState extends State<EditProfileView> {
   late TextEditingController _userController;
   late TextEditingController _bioController;
   String _avatarUrl = "";
-  File? _avatarFile;
+  XFile? _avatarFile;
   final String _uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
   final ImagePicker _picker = ImagePicker();
   final UserService _userService = UserService();
@@ -70,7 +70,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     );
     if (selected != null) {
       setState(() {
-        _avatarFile = File(selected.path);
+        _avatarFile = selected;
       });
     }
   }
@@ -84,7 +84,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         uid: _uid,
         username: username,
         bio: _bioController.text.trim(),
-        profileImage: _avatarFile,
+        profileImageXFile: _avatarFile,
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -130,7 +130,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                 radius: 45,
                 backgroundColor: const Color(0xFFEDF6F4),
                 backgroundImage: _avatarFile != null
-                    ? FileImage(_avatarFile!)
+                    ? appImageProvider(_avatarFile!.path)
                     : appImageProvider(_avatarUrl),
                 child: _avatarFile == null && appImageProvider(_avatarUrl) == null
                     ? const Icon(

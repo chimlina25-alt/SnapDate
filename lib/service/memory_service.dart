@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/memory.dart';
 import 'storage_service.dart';
@@ -21,39 +22,79 @@ class MemoryService {
   }
 
   Stream<List<Memory>> streamMemories(String uid, {int? limit}) {
-    var query = _memories(uid)
+    return _memories(uid)
         .where('userId', isEqualTo: uid)
-        .orderBy('createdAt', descending: true);
-    if (limit != null) query = query.limit(limit);
-    return query.snapshots().map((snap) => snap.docs.map(Memory.fromDoc).toList());
+        .snapshots()
+        .map((snap) {
+          final docs = snap.docs.toList();
+          docs.sort((a, b) {
+            final aTime = (a.data()['createdAt'] ?? a.data()['timestamp']) as Timestamp?;
+            final bTime = (b.data()['createdAt'] ?? b.data()['timestamp']) as Timestamp?;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+          });
+          var list = docs.map(Memory.fromDoc).toList();
+          if (limit != null) {
+            list = list.take(limit).toList();
+          }
+          return list;
+        });
   }
 
   Stream<List<Memory>> streamFavorites(String uid) {
     return _memories(uid)
         .where('userId', isEqualTo: uid)
         .where('isFavorite', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(Memory.fromDoc).toList());
+        .map((snap) {
+          final docs = snap.docs.toList();
+          docs.sort((a, b) {
+            final aTime = (a.data()['createdAt'] ?? a.data()['timestamp']) as Timestamp?;
+            final bTime = (b.data()['createdAt'] ?? b.data()['timestamp']) as Timestamp?;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+          });
+          return docs.map(Memory.fromDoc).toList();
+        });
   }
 
   Stream<List<Memory>> streamDay(String uid, DateTime date) {
     return _memories(uid)
         .where('userId', isEqualTo: uid)
         .where('dateKey', isEqualTo: dateKey(date))
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(Memory.fromDoc).toList());
+        .map((snap) {
+          final docs = snap.docs.toList();
+          docs.sort((a, b) {
+            final aTime = (a.data()['createdAt'] ?? a.data()['timestamp']) as Timestamp?;
+            final bTime = (b.data()['createdAt'] ?? b.data()['timestamp']) as Timestamp?;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+          });
+          return docs.map(Memory.fromDoc).toList();
+        });
   }
 
   Stream<List<Memory>> streamRange(String uid, DateTime start, DateTime end) {
     return _memories(uid)
         .where('userId', isEqualTo: uid)
-        .where('memoryDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('memoryDate', isLessThan: Timestamp.fromDate(end))
-        .orderBy('memoryDate')
         .snapshots()
-        .map((snap) => snap.docs.map(Memory.fromDoc).toList());
+        .map((snap) {
+          final docs = snap.docs.toList();
+          final list = docs.map(Memory.fromDoc).toList();
+          final filtered = list.where((m) {
+            return m.memoryDate.isAtSameMomentAs(start) ||
+                (m.memoryDate.isAfter(start) && m.memoryDate.isBefore(end));
+          }).toList();
+          filtered.sort((a, b) => a.memoryDate.compareTo(b.memoryDate));
+          return filtered;
+        });
   }
 
   Stream<List<Memory>> streamOnThisDayLastYear(String uid, DateTime date) {
@@ -61,11 +102,16 @@ class MemoryService {
     return streamDay(uid, lastYear);
   }
 
-  Future<void> addImageMemory({required String uid, required File file}) async {
+  Future<void> addImageMemory({
+    required String uid,
+    File? file,
+    XFile? xFile,
+  }) async {
     final now = DateTime.now();
     final upload = await _storageService.uploadImage(
       ownerId: uid,
       file: file,
+      xFile: xFile,
       folder: 'memories',
     );
     final memory = Memory(
@@ -82,11 +128,16 @@ class MemoryService {
     await doc.set({...memory.toMap(), 'memoryId': doc.id});
   }
 
-  Future<void> addVideoMemory({required String uid, required File file}) async {
+  Future<void> addVideoMemory({
+    required String uid,
+    File? file,
+    XFile? xFile,
+  }) async {
     final now = DateTime.now();
     final upload = await _storageService.uploadVideo(
       ownerId: uid,
       file: file,
+      xFile: xFile,
       folder: 'memories',
     );
     final memory = Memory(

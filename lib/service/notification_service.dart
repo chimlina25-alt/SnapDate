@@ -18,24 +18,32 @@ class NotificationService {
   final FirebaseMessaging _messaging;
 
   Future<void> initialize() async {
-    await _messaging.requestPermission();
-    _auth.authStateChanges().listen((user) {
-      if (user != null) {
-        syncToken(user.uid);
-      }
-    });
-    _messaging.onTokenRefresh.listen((token) {
-      final uid = _auth.currentUser?.uid;
-      if (uid != null) {
-        _saveToken(uid, token);
-      }
-    });
+    try {
+      await _messaging.requestPermission();
+      _auth.authStateChanges().listen((user) {
+        if (user != null) {
+          syncToken(user.uid);
+        }
+      });
+      _messaging.onTokenRefresh.listen((token) {
+        final uid = _auth.currentUser?.uid;
+        if (uid != null) {
+          _saveToken(uid, token);
+        }
+      });
+    } catch (e) {
+      print("NotificationService initialization ignored or failed: $e");
+    }
   }
 
   Future<void> syncToken(String uid) async {
-    final token = await _messaging.getToken();
-    if (token != null) {
-      await _saveToken(uid, token);
+    try {
+      final token = await _messaging.getToken();
+      if (token != null) {
+        await _saveToken(uid, token);
+      }
+    } catch (e) {
+      print("FCM token sync ignored or failed: $e");
     }
   }
 

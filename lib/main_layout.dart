@@ -7,6 +7,7 @@ import 'views/profile_view.dart';
 import 'views/notifications.dart';
 import 'views/camera_view.dart';
 import 'views/gallery.dart';
+import 'models/app_user.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -18,6 +19,7 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   String _currentScreen = 'home';
   String _searchQuery = '';
+  AppUser? _activeFriendForChat;
 
   void _navigateTo(String screenName) {
     setState(() {
@@ -28,6 +30,8 @@ class _MainLayoutState extends State<MainLayout> {
   void _resetToHome() {
     setState(() {
       _currentScreen = 'home';
+      _activeFriendForChat = null;
+      _searchQuery = '';
     });
   }
 
@@ -167,11 +171,21 @@ class _MainLayoutState extends State<MainLayout> {
       case 'favorites':
         return FavoritesView(onBackToHome: _resetToHome);
       case 'chat':
-        return ChatView(initialQuery: _searchQuery);
+        return ChatView(
+          initialQuery: _searchQuery,
+          initialActiveFriend: _activeFriendForChat,
+        );
       case 'profile':
         return ProfileView(onBackToHome: _resetToHome);
       case 'notifications':
-        return const NotificationsView();
+        return NotificationsView(
+          onFriendAccepted: (friend) {
+            setState(() {
+              _activeFriendForChat = friend;
+              _currentScreen = 'chat';
+            });
+          },
+        );
       case 'camera':
         return const CameraMainView();
       case 'gallery':

@@ -9,7 +9,9 @@ import '../service/user_service.dart';
 import '../utils/app_image.dart';
 
 class NotificationsView extends StatelessWidget {
-  const NotificationsView({super.key});
+  final ValueChanged<AppUser>? onFriendAccepted;
+
+  const NotificationsView({super.key, this.onFriendAccepted});
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +72,10 @@ class NotificationsView extends StatelessWidget {
             itemCount: requests.length,
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              return _FriendRequestTile(request: requests[index]);
+              return _FriendRequestTile(
+                request: requests[index],
+                onFriendAccepted: onFriendAccepted,
+              );
             },
           );
         },
@@ -81,8 +86,9 @@ class NotificationsView extends StatelessWidget {
 
 class _FriendRequestTile extends StatefulWidget {
   final FriendRequestModel request;
+  final ValueChanged<AppUser>? onFriendAccepted;
 
-  const _FriendRequestTile({required this.request});
+  const _FriendRequestTile({required this.request, this.onFriendAccepted});
 
   @override
   State<_FriendRequestTile> createState() => _FriendRequestTileState();
@@ -111,6 +117,10 @@ class _FriendRequestTileState extends State<_FriendRequestTile> {
           'avatarUrl': sender.profileImageUrl,
         },
       );
+      
+      if (widget.onFriendAccepted != null) {
+        widget.onFriendAccepted!(sender);
+      }
     });
   }
 
