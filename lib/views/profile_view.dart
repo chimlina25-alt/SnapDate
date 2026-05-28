@@ -1,15 +1,112 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'edit_profile_view.dart';
 import './signin_view.dart';
 import '../models/memory.dart';
 import '../service/memory_service.dart';
 import '../utils/app_image.dart';
 
-class ProfileView extends StatelessWidget {
+class ProfileView extends StatefulWidget {
   final VoidCallback onBackToHome;
   const ProfileView({super.key, required this.onBackToHome});
+
+  @override
+  State<ProfileView> createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<ProfileView> {
+  bool _isDeleting = false;
+
+  Future<void> _handleDeleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete account'),
+          content: const Text(
+            'Deleting your account will remove your profile document from SnapDate and sign you out permanently. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete Account'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    setState(() => _isDeleting = true);
+
+    final isGoogleUser = user.providerData.any(
+      (provider) => provider.providerId == 'google.com',
+    );
+
+    try {
+      if (isGoogleUser) {
+        await _reauthenticateGoogleUser();
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .delete();
+      await GoogleSignIn().signOut();
+      await user.delete();
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const SignInView()),
+        (route) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message =
+          error is FirebaseAuthException &&
+              error.code == 'requires-recent-login'
+          ? 'Please sign in again before deleting your account.'
+          : 'Could not delete account: $error';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  Future<void> _reauthenticateGoogleUser() async {
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) {
+      throw Exception('Google sign-in was cancelled.');
+    }
+
+    final googleAuth = await googleUser.authentication;
+    if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+      throw Exception('Could not authenticate with Google.');
+    }
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    await FirebaseAuth.instance.currentUser?.reauthenticateWithCredential(
+      credential,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,22 +268,45 @@ class ProfileView extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
                       ),
-                      onPressed: () async {
-                        await FirebaseAuth.instance.signOut();
-                        if (context.mounted) {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SignInView(),
-                            ),
-                            (route) => false,
-                          );
-                        }
-                      },
+                      onPressed: _isDeleting
+                          ? null
+                          : () async {
+                              await FirebaseAuth.instance.signOut();
+                              if (context.mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SignInView(),
+                                  ),
+                                  (route) => false,
+                                );
+                              }
+                            },
                       child: const Text(
                         "LOG OUT",
                         style: TextStyle(color: Colors.redAccent),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        side: const BorderSide(color: Colors.redAccent),
+                      ),
+                      onPressed: _isDeleting ? null : _handleDeleteAccount,
+                      child: _isDeleting
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.redAccent,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "DELETE ACCOUNT",
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
                     ),
                   ],
                 ),

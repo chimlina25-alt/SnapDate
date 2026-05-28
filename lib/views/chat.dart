@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +12,7 @@ import '../service/chat_service.dart';
 import '../service/friend_service.dart';
 import '../service/memory_service.dart';
 import '../service/user_service.dart';
+import 'user_profile_view.dart';
 
 class ChatView extends StatefulWidget {
   final String initialQuery;
@@ -291,19 +290,56 @@ class _ChatViewState extends State<ChatView> {
           separatorBuilder: (context, index) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final friend = snapshot.data![index];
-
-            return ListTile(
-              leading: _avatar(friend.profileImageUrl),
-              title: Text(
-                friend.username,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            return Dismissible(
+              key: ValueKey(friend.uid),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 20),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade400,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.remove_circle_outline,
+                  color: Colors.white,
+                ),
               ),
-              subtitle: _LastMessage(
-                chatId: ChatService.getChatId(_uid, friend.uid),
+              confirmDismiss: (_) => _confirmUnfriend(friend),
+              child: ListTile(
+                leading: GestureDetector(
+                  onTap: () => _openUserProfile(friend),
+                  child: _avatar(friend.profileImageUrl),
+                ),
+                title: Text(
+                  friend.username,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: _LastMessage(
+                  chatId: ChatService.getChatId(_uid, friend.uid),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'unfriend') {
+                          _confirmUnfriend(friend);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'unfriend',
+                          child: Text('Unfriend'),
+                        ),
+                      ],
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+                onTap: () => setState(() => _activeFriend = friend),
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => setState(() => _activeFriend = friend),
             );
           },
         );
@@ -344,7 +380,7 @@ class _ChatViewState extends State<ChatView> {
         ),
         Expanded(
           child: StreamBuilder<List<ChatMessage>>(
-            stream: _chatService.streamMessages(chatId),
+            stream: _chatService.streamMessages(chatId, currentUid: _uid),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -491,95 +527,103 @@ class _ChatViewState extends State<ChatView> {
 
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: mine
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          if (mine && !isDeleted)
-            Align(
-              alignment: Alignment.topRight,
-              child: PopupMenuButton<String>(
-                padding: EdgeInsets.zero,
-                icon: const Icon(
-                  Icons.more_vert,
-                  size: 18,
-                  color: Colors.black54,
+      child: GestureDetector(
+        onLongPress: mine && !isDeleted
+            ? () => _confirmDeleteMessage(chatId, message)
+            : null,
+        child: Column(
+          crossAxisAlignment: mine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            if (mine && !isDeleted)
+              Align(
+                alignment: Alignment.topRight,
+                child: PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: Colors.black54,
+                  ),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _startEditingMessage(message);
+                    } else if (value == 'delete') {
+                      _confirmDeleteMessage(chatId, message);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
                 ),
-                onSelected: (value) {
-                  if (value == 'edit') {
-                    _startEditingMessage(message);
-                  } else if (value == 'delete') {
-                    _confirmDeleteMessage(chatId, message);
-                  }
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+              ),
+            Container(
+              constraints: const BoxConstraints(maxWidth: 260),
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: EdgeInsets.all(imageUrl.isEmpty ? 12 : 6),
+              decoration: BoxDecoration(
+                color: bubbleColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: mine
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isDeleted) ...[
+                    const Text(
+                      'This message was deleted',
+                      style: TextStyle(
+                        color: Colors.black45,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ] else ...[
+                    if (imageUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: appImage(imageUrl, fit: BoxFit.cover),
+                      )
+                    else
+                      Text(
+                        text,
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 15,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatMessageTime(message.createdAt),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.black.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        if (isEdited) ...[
+                          const SizedBox(width: 6),
+                          const Text(
+                            '(edited)',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
-          Container(
-            constraints: const BoxConstraints(maxWidth: 260),
-            margin: const EdgeInsets.symmetric(vertical: 5),
-            padding: EdgeInsets.all(imageUrl.isEmpty ? 12 : 6),
-            decoration: BoxDecoration(
-              color: bubbleColor,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: mine
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isDeleted) ...[
-                  const Text(
-                    'This message was deleted',
-                    style: TextStyle(
-                      color: Colors.black45,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ] else ...[
-                  if (imageUrl.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: appImage(imageUrl, fit: BoxFit.cover),
-                    )
-                  else
-                    Text(
-                      text,
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 15,
-                      ),
-                    ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatMessageTime(message.createdAt),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.black.withValues(alpha: 0.45),
-                        ),
-                      ),
-                      if (isEdited) ...[
-                        const SizedBox(width: 6),
-                        const Text(
-                          '(edited)',
-                          style: TextStyle(fontSize: 10, color: Colors.black54),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -674,6 +718,57 @@ class _ChatViewState extends State<ChatView> {
     await _sendMessage(friendId: friendId, text: text);
   }
 
+  Future<bool?> _confirmUnfriend(AppUser friend) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Remove friend'),
+          content: Text(
+            'Remove ${friend.username} from your friends list? This will stop sharing chat updates.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Unfriend'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return false;
+    try {
+      await _friendService.unfriend(uid: _uid, friendUid: friend.uid);
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${friend.username} was unfriended.')),
+      );
+      if (_activeFriend?.uid == friend.uid) {
+        setState(() => _activeFriend = null);
+      }
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not remove friend: $e')));
+      return false;
+    }
+  }
+
+  void _openUserProfile(AppUser friend) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => UserProfileView(profile: friend)),
+    );
+  }
+
   Future<void> _performEdit(String friendId, String newText) async {
     final editingMessage = _editingMessage;
     if (editingMessage == null) return;
@@ -716,36 +811,46 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _confirmDeleteMessage(String chatId, ChatMessage message) async {
-    final confirmed = await showDialog<bool>(
+    final choice = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete message'),
           content: const Text(
-            'Delete this message? This will hide it from the conversation.',
+            'Choose whether you want to delete this message only for you or for everyone.',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(context, null),
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete'),
+              onPressed: () => Navigator.pop(context, 'me'),
+              child: const Text('Delete for Me'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'everyone'),
+              child: const Text('Delete for Everyone'),
             ),
           ],
         );
       },
     );
 
-    if (confirmed != true) return;
+    if (choice == null) return;
     setState(() => _isSending = true);
     try {
-      await _chatService.deleteMessage(chatId, message.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Message deleted.')));
+      if (choice == 'me') {
+        await _chatService.deleteMessageForMe(chatId, message.id, _uid);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message removed from your view.')),
+        );
+      } else {
+        await _chatService.deleteMessageForEveryone(chatId, message.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message deleted for everyone.')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

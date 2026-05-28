@@ -14,8 +14,11 @@ class ChatRepository {
     return _service.streamChatRooms(uid);
   }
 
-  Stream<List<ChatMessage>> streamMessages(String chatId) {
-    return _service.streamMessages(chatId);
+  Stream<List<ChatMessage>> streamMessages(
+    String chatId, {
+    String? currentUid,
+  }) {
+    return _service.streamMessages(chatId, currentUid: currentUid);
   }
 
   Future<void> sendText({

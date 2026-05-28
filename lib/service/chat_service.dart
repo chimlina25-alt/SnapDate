@@ -25,14 +25,29 @@ class ChatService {
         .snapshots();
   }
 
-  Stream<List<ChatMessage>> streamMessages(String chatId) {
+  Stream<List<ChatMessage>> streamMessages(
+    String chatId, {
+    String? currentUid,
+  }) {
     return _firestore
         .collection('chat_rooms')
         .doc(chatId)
         .collection('messages')
         .orderBy('createdAt')
         .snapshots()
-        .map((snap) => snap.docs.map(ChatMessage.fromDoc).toList());
+        .map((snap) {
+          final messages = snap.docs.map(ChatMessage.fromDoc).toList();
+          return messages.where((message) {
+            if (message.isDeleted || message.isDeletedForEveryone) {
+              return false;
+            }
+            if (currentUid != null &&
+                message.deletedByUsers.contains(currentUid)) {
+              return false;
+            }
+            return true;
+          }).toList();
+        });
   }
 
   Future<void> createRoom({
@@ -110,6 +125,14 @@ class ChatService {
   }
 
   Future<void> deleteMessage(String chatId, String messageId) async {
+    return deleteMessageForEveryone(chatId, messageId);
+  }
+
+  Future<void> deleteMessageForMe(
+    String chatId,
+    String messageId,
+    String currentUid,
+  ) async {
     final messageRef = _firestore
         .collection('chat_rooms')
         .doc(chatId)
@@ -117,7 +140,20 @@ class ChatService {
         .doc(messageId);
 
     await messageRef.update({
-      'isDeleted': true,
+      'deletedByUsers': FieldValue.arrayUnion([currentUid]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteMessageForEveryone(String chatId, String messageId) async {
+    final messageRef = _firestore
+        .collection('chat_rooms')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    await messageRef.update({
+      'isDeletedForEveryone': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -154,6 +190,8 @@ class ChatService {
       'senderId': fromUid,
       'receiverId': toUid,
       'isRead': false,
+      'isDeletedForEveryone': false,
+      'deletedByUsers': <String>[],
     });
   }
 

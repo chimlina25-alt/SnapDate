@@ -11,6 +11,8 @@ class ChatMessage {
   final String storagePath;
   final bool isEdited;
   final bool isDeleted;
+  final bool isDeletedForEveryone;
+  final List<String> deletedByUsers;
   final DateTime? createdAt;
 
   const ChatMessage({
@@ -22,6 +24,8 @@ class ChatMessage {
     required this.storagePath,
     this.isEdited = false,
     this.isDeleted = false,
+    this.isDeletedForEveryone = false,
+    this.deletedByUsers = const [],
     this.createdAt,
   });
 
@@ -37,6 +41,8 @@ class ChatMessage {
       storagePath: message.storagePath,
       isEdited: message.isEdited,
       isDeleted: message.isDeleted,
+      isDeletedForEveryone: message.isDeletedForEveryone,
+      deletedByUsers: message.deletedByUsers,
       createdAt: message.timestamp,
     );
   }

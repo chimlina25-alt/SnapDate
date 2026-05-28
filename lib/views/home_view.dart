@@ -34,7 +34,7 @@ class HomeView extends StatelessWidget {
             mainAxisSpacing: 20,
             childAspectRatio: 0.95,
             children: [
-              _buildFeatureTile(Icons.calendar_month_outlined, 'Calendar', const Color(0xFFC84B4B), () => onNavigate('calendar')),
+              _buildFeatureTile(Icons.calendar_month_outlined, 'Calendar', const Color(0xFFE26A97), () => onNavigate('calendar')),
               _buildFeatureTile(Icons.bookmark_border_rounded, 'Favourite', const Color(0xFFE26A97), () => onNavigate('favorites')),
               _buildFeatureTile(Icons.chat_bubble_outline_rounded, 'Chat', const Color(0xFFE26A97), () => onNavigate('chat')),
               _buildFeatureTile(Icons.person_outline_rounded, 'Profile', const Color(0xFFE26A97), () => onNavigate('profile')),

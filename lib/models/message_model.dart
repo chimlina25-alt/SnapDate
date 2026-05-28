@@ -8,6 +8,8 @@ class MessageModel {
   final String storagePath;
   final bool isEdited;
   final bool isDeleted;
+  final bool isDeletedForEveryone;
+  final List<String> deletedByUsers;
   final DateTime? timestamp;
 
   const MessageModel({
@@ -18,6 +20,8 @@ class MessageModel {
     required this.storagePath,
     this.isEdited = false,
     this.isDeleted = false,
+    this.isDeletedForEveryone = false,
+    this.deletedByUsers = const [],
     this.timestamp,
   });
 
@@ -33,6 +37,8 @@ class MessageModel {
       storagePath: (data['storagePath'] ?? data['imagePath'] ?? '').toString(),
       isEdited: data['isEdited'] == true,
       isDeleted: data['isDeleted'] == true,
+      isDeletedForEveryone: data['isDeletedForEveryone'] == true,
+      deletedByUsers: List<String>.from(data['deletedByUsers'] ?? []),
       timestamp:
           (data['timestamp'] as Timestamp?)?.toDate() ??
           (data['createdAt'] as Timestamp?)?.toDate(),
@@ -48,6 +54,8 @@ class MessageModel {
       'storagePath': storagePath,
       'isEdited': isEdited,
       'isDeleted': isDeleted,
+      'isDeletedForEveryone': isDeletedForEveryone,
+      'deletedByUsers': deletedByUsers,
       'timestamp': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
     };

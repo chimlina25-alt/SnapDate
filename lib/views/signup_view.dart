@@ -53,9 +53,9 @@ class _SignUpViewState extends State<SignUpView> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) {
         setState(() {
@@ -163,25 +163,6 @@ class _SignUpViewState extends State<SignUpView> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Alternate Provider Route Node Block (Oauth Integration Mock Container)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: () {},
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFD6A2A8)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Login with Google',
-                          style: TextStyle(color: Colors.black87),
-                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

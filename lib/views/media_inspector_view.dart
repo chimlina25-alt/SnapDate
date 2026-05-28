@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/app_image.dart';
 import '../models/memory.dart';
 import '../service/memory_service.dart';
+import 'share_memory_view.dart';
 
 class MediaInspectorView extends StatefulWidget {
   final String? docId;
@@ -34,17 +35,26 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
   void initState() {
     super.initState();
     _memoryId = widget.memory?.id ?? widget.memoryId ?? widget.docId ?? '';
-    _mediaUrl = widget.memory?.mediaUrl ??
+    _mediaUrl =
+        widget.memory?.mediaUrl ??
         (widget.mediaData?['imagePath'] ??
                 widget.mediaData?['mediaUrl'] ??
                 widget.mediaData?['imageUrl'] ??
                 '')
             .toString();
-    _storagePath = widget.memory?.storagePath ??
-        (widget.mediaData?['storagePath'] ?? widget.mediaData?['imagePath'] ?? '').toString();
-    _type = widget.memory?.type ??
-        ((widget.mediaData?['type'] ?? 'image') == 'video' ? MemoryType.video : MemoryType.image);
-    _isFav = widget.memory?.isFavorite ?? widget.mediaData?['isFavorite'] == true;
+    _storagePath =
+        widget.memory?.storagePath ??
+        (widget.mediaData?['storagePath'] ??
+                widget.mediaData?['imagePath'] ??
+                '')
+            .toString();
+    _type =
+        widget.memory?.type ??
+        ((widget.mediaData?['type'] ?? 'image') == 'video'
+            ? MemoryType.video
+            : MemoryType.image);
+    _isFav =
+        widget.memory?.isFavorite ?? widget.mediaData?['isFavorite'] == true;
   }
 
   Future<void> _toggleFavorite() async {
@@ -70,6 +80,24 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
     }
   }
 
+  Future<void> _shareMemory() async {
+    if (_mediaUrl.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not share memory: URL is missing.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ShareMemoryView(mediaUrl: _mediaUrl)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,6 +121,10 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
             icon: const Icon(Icons.delete_outline, color: Colors.white70),
             onPressed: _deletePhoto,
           ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined, color: Colors.white70),
+            onPressed: _shareMemory,
+          ),
         ],
       ),
       body: Column(
@@ -102,7 +134,11 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
             child: InteractiveViewer(
               child: Center(
                 child: _type == MemoryType.video
-                    ? const Icon(Icons.play_circle_fill, color: Colors.white70, size: 96)
+                    ? const Icon(
+                        Icons.play_circle_fill,
+                        color: Colors.white70,
+                        size: 96,
+                      )
                     : appImage(
                         _mediaUrl,
                         fit: BoxFit.contain,
@@ -130,13 +166,7 @@ class _MediaInspectorViewState extends State<MediaInspectorView> {
                     "Share Memory",
                     style: TextStyle(color: Colors.white),
                   ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Sharing options generated'),
-                      ),
-                    );
-                  },
+                  onPressed: _shareMemory,
                 ),
               ],
             ),

@@ -153,7 +153,7 @@ class _CameraMainViewState extends State<CameraMainView> {
         children: [
           Positioned.fill(
             child: ready
-                ? CameraPreview(controller!)
+                ? CameraPreview(controller)
                 : const Center(
                     child: CircularProgressIndicator(color: Color(0xFFD6A2A8)),
                   ),

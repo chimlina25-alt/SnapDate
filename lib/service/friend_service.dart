@@ -6,7 +6,7 @@ import 'chat_service.dart';
 
 class FriendService {
   FriendService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -18,8 +18,10 @@ class FriendService {
         .map((snap) {
           final docs = snap.docs.toList();
           docs.sort((a, b) {
-            final aTime = (a.data()['addedAt'] ?? a.data()['createdAt']) as Timestamp?;
-            final bTime = (b.data()['addedAt'] ?? b.data()['createdAt']) as Timestamp?;
+            final aTime =
+                (a.data()['addedAt'] ?? a.data()['createdAt']) as Timestamp?;
+            final bTime =
+                (b.data()['addedAt'] ?? b.data()['createdAt']) as Timestamp?;
             if (aTime == null && bTime == null) return 0;
             if (aTime == null) return 1;
             if (bTime == null) return -1;
@@ -29,7 +31,9 @@ class FriendService {
         });
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamIncomingRequests(String uid) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamIncomingRequests(
+    String uid,
+  ) {
     return _firestore
         .collection('friend_requests')
         .where('receiverId', isEqualTo: uid)
@@ -38,9 +42,9 @@ class FriendService {
   }
 
   Stream<List<FriendRequestModel>> streamPendingRequests(String uid) {
-    return streamIncomingRequests(uid).map(
-      (snap) => snap.docs.map(FriendRequestModel.fromDoc).toList(),
-    );
+    return streamIncomingRequests(
+      uid,
+    ).map((snap) => snap.docs.map(FriendRequestModel.fromDoc).toList());
   }
 
   Future<void> sendRequest({
@@ -78,10 +82,15 @@ class FriendService {
     required Map<String, dynamic> requestData,
   }) async {
     final batch = _firestore.batch();
-    final myFriend = _firestore.collection('friends').doc(friendDocumentId(uid, fromUid));
-    final theirFriend = _firestore.collection('friends').doc(friendDocumentId(fromUid, uid));
-    final requestRef =
-        _firestore.collection('friend_requests').doc(requestDocumentId(fromUid, uid));
+    final myFriend = _firestore
+        .collection('friends')
+        .doc(friendDocumentId(uid, fromUid));
+    final theirFriend = _firestore
+        .collection('friends')
+        .doc(friendDocumentId(fromUid, uid));
+    final requestRef = _firestore
+        .collection('friend_requests')
+        .doc(requestDocumentId(fromUid, uid));
     final chatId = ChatService.getChatId(uid, fromUid);
     final chatRef = _firestore.collection('chat_rooms').doc(chatId);
     final members = [uid, fromUid]..sort();
@@ -92,13 +101,18 @@ class FriendService {
       'friendId': fromUid,
       'email': requestData['email'] ?? '',
       'username': requestData['username'] ?? 'SnapDate User',
-      'usernameLower': (requestData['username'] ?? 'SnapDate User').toString().toLowerCase(),
-      'profileImageUrl': requestData['profileImageUrl'] ?? requestData['avatarUrl'] ?? '',
-      'profileImagePath': requestData['profileImagePath'] ??
+      'usernameLower': (requestData['username'] ?? 'SnapDate User')
+          .toString()
+          .toLowerCase(),
+      'profileImageUrl':
+          requestData['profileImageUrl'] ?? requestData['avatarUrl'] ?? '',
+      'profileImagePath':
+          requestData['profileImagePath'] ??
           requestData['profileImageUrl'] ??
           requestData['avatarUrl'] ??
           '',
-      'avatarUrl': requestData['profileImageUrl'] ?? requestData['avatarUrl'] ?? '',
+      'avatarUrl':
+          requestData['profileImageUrl'] ?? requestData['avatarUrl'] ?? '',
       'addedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
@@ -139,12 +153,31 @@ class FriendService {
         .collection('friend_requests')
         .doc(requestDocumentId(fromUid, uid))
         .update({
-      'status': 'rejected',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+          'status': 'rejected',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
   }
 
-  static String requestDocumentId(String fromUid, String toUid) => '${fromUid}_$toUid';
+  Future<void> unfriend({
+    required String uid,
+    required String friendUid,
+  }) async {
+    final myFriendRef = _firestore
+        .collection('friends')
+        .doc(friendDocumentId(uid, friendUid));
+    final theirFriendRef = _firestore
+        .collection('friends')
+        .doc(friendDocumentId(friendUid, uid));
 
-  static String friendDocumentId(String uid, String friendId) => '${uid}_$friendId';
+    final batch = _firestore.batch();
+    batch.delete(myFriendRef);
+    batch.delete(theirFriendRef);
+    await batch.commit();
+  }
+
+  static String requestDocumentId(String fromUid, String toUid) =>
+      '${fromUid}_$toUid';
+
+  static String friendDocumentId(String uid, String friendId) =>
+      '${uid}_$friendId';
 }
